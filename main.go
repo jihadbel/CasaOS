@@ -32,6 +32,7 @@ import (
 	"github.com/IceWhaleTech/CasaOS/pkg/utils/ip_helper"
 	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
+	"os"
 	"runtime"
 	"strings"
 )
@@ -72,6 +73,13 @@ func init() {
 	println("build date:", date)
 
 	config.InitSetup(*configFlag, _confSample)
+
+	if runtime.GOOS == "windows" {
+		_ = os.MkdirAll(`C:\CasaOS\DATA\Photos`, os.ModePerm)
+		_ = os.MkdirAll(`C:\CasaOS\DATA\Documents`, os.ModePerm)
+		_ = os.MkdirAll(config.CommonInfo.RuntimePath, os.ModePerm)
+		_ = os.MkdirAll(config.AppInfo.LogPath, os.ModePerm)
+	}
 
 	logger.LogInit(config.AppInfo.LogPath, config.AppInfo.LogSaveName, config.AppInfo.LogFileExt)
 	if len(*dbFlag) == 0 {
@@ -176,18 +184,20 @@ func main() {
 			Target: "http://" + listener.Addr().String(),
 		})
 		if err != nil {
-			logger.Warn("gateway route registration skipped/failed", zap.String("path", apiPath), zap.Error(err))
+			logger.Info("gateway route registration skipped/failed", zap.String("path", apiPath), zap.Error(err))
 		}
 	}
 
 	// register at message bus
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 2; i++ {
 		response, err := service.MyService.MessageBus().RegisterEventTypesWithResponse(context.Background(), common.EventTypes)
 		if err != nil {
-			logger.Error("error when trying to register one or more event types - some event type will not be discoverable", zap.Error(err))
+			logger.Info("message bus not reachable - running in standalone mode")
+			break
 		}
 		if response != nil && response.StatusCode() != http.StatusOK {
-			logger.Error("error when trying to register one or more event types - some event type will not be discoverable", zap.String("status", response.Status()), zap.String("body", string(response.Body)))
+			logger.Info("message bus registration skipped", zap.String("status", response.Status()))
+			break
 		}
 		if response != nil && response.StatusCode() == http.StatusOK {
 			break

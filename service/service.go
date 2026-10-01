@@ -11,7 +11,11 @@
 package service
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/IceWhaleTech/CasaOS-Common/external"
+	commonModel "github.com/IceWhaleTech/CasaOS-Common/model"
 	"github.com/IceWhaleTech/CasaOS/codegen/message_bus"
 	"github.com/IceWhaleTech/CasaOS/pkg/config"
 	"github.com/gorilla/websocket"
@@ -30,6 +34,20 @@ var (
 	SocketRun      bool
 )
 
+type standaloneGatewayService struct{}
+
+func (s *standaloneGatewayService) CreateRoute(route *commonModel.Route) error {
+	return nil
+}
+
+func (s *standaloneGatewayService) ChangePort(request *commonModel.ChangePortRequest) error {
+	return nil
+}
+
+func (s *standaloneGatewayService) GetPort() (error, string) {
+	return nil, "8080"
+}
+
 type Repository interface {
 	Casa() CasaService
 	Connections() ConnectionsService
@@ -46,9 +64,20 @@ type Repository interface {
 }
 
 func NewService(db *gorm.DB, RuntimePath string) Repository {
-	gatewayManagement, err := external.NewManagementService(RuntimePath)
-	if err != nil && len(RuntimePath) > 0 {
-		panic(err)
+	var gatewayManagement external.ManagementService
+	if len(RuntimePath) > 0 {
+		managementAddressFile := filepath.Join(RuntimePath, external.ManagementURLFilename)
+		if _, err := os.Stat(managementAddressFile); err == nil {
+			var errMgmt error
+			gatewayManagement, errMgmt = external.NewManagementService(RuntimePath)
+			if errMgmt != nil {
+				gatewayManagement = &standaloneGatewayService{}
+			}
+		} else {
+			gatewayManagement = &standaloneGatewayService{}
+		}
+	} else {
+		gatewayManagement = &standaloneGatewayService{}
 	}
 
 	return &store{
@@ -132,6 +161,12 @@ func (c *store) MessageBus() *message_bus.ClientWithResponses {
 		// in order to avoid panic.
 		//
 		// If we don't avoid panic, message bus becomes a hard dependency, which is not what we want.
+
+		messageBusFile := filepath.Join(config.CommonInfo.RuntimePath, external.MessageBusAddressFilename)
+		if _, err := os.Stat(messageBusFile); err != nil {
+			c.Server = "message bus address not found"
+			return nil
+		}
 
 		messageBusAddress, err := external.GetMessageBusAddress(config.CommonInfo.RuntimePath)
 		if err != nil {

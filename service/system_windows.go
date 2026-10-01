@@ -12,9 +12,16 @@ import (
 	"os/exec"
 	"runtime"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/shirou/gopsutil/v3/host"
+)
+
+var (
+	cachedNetStates     = make(map[string]string)
+	lastNetStateRefresh time.Time
+	netStateMutex       sync.RWMutex
 )
 
 func (c *systemService) GetDeviceTree() string {
@@ -26,19 +33,35 @@ func (c *systemService) GetDeviceTree() string {
 }
 
 func (c *systemService) GetNetState(name string) string {
-	interfaces, err := net2.Interfaces()
-	if err != nil {
-		return "down"
-	}
-	for _, iface := range interfaces {
-		if iface.Name == name {
-			if iface.Flags&net2.FlagUp != 0 {
-				return "up"
-			}
-			return "down"
+	netStateMutex.RLock()
+	if time.Since(lastNetStateRefresh) < 3*time.Second {
+		if state, ok := cachedNetStates[name]; ok {
+			netStateMutex.RUnlock()
+			return state
 		}
 	}
-	return "down"
+	netStateMutex.RUnlock()
+
+	netStateMutex.Lock()
+	defer netStateMutex.Unlock()
+	if time.Since(lastNetStateRefresh) >= 3*time.Second {
+		interfaces, err := net2.Interfaces()
+		if err == nil {
+			cachedNetStates = make(map[string]string)
+			for _, iface := range interfaces {
+				if iface.Flags&net2.FlagUp != 0 {
+					cachedNetStates[iface.Name] = "up"
+				} else {
+					cachedNetStates[iface.Name] = "down"
+				}
+			}
+			lastNetStateRefresh = time.Now()
+		}
+	}
+	if state, ok := cachedNetStates[name]; ok {
+		return state
+	}
+	return "up"
 }
 
 func (c *systemService) GetNet(physics bool) []string {

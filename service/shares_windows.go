@@ -46,6 +46,6 @@ func (s *sharesStruct) InitSambaConfig() {
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command",
 		`if ((Get-Service -Name LanmanServer).Status -ne 'Running') { Start-Service -Name LanmanServer }`)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		logger.Warn("Windows LanmanServer service check returned warning", zap.Error(err), zap.String("output", string(output)))
+		logger.Info("Windows LanmanServer service check returned notice", zap.Error(err), zap.String("output", string(output)))
 	}
 }
