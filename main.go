@@ -126,7 +126,12 @@ func main() {
 	crontab.Start()
 	defer crontab.Stop()
 
-	listener, err := net.Listen("tcp", net.JoinHostPort(LOCALHOST, "0"))
+	portToListen := "0"
+	if config.ServerInfo.HttpPort != "" {
+		portToListen = config.ServerInfo.HttpPort
+	}
+
+	listener, err := net.Listen("tcp", net.JoinHostPort(LOCALHOST, portToListen))
 	if err != nil {
 		panic(err)
 	}
@@ -155,8 +160,7 @@ func main() {
 			Target: "http://" + listener.Addr().String(),
 		})
 		if err != nil {
-			fmt.Println("err", err)
-			panic(err)
+			logger.Warn("gateway route registration skipped/failed", zap.String("path", apiPath), zap.Error(err))
 		}
 	}
 
@@ -169,7 +173,7 @@ func main() {
 		if response != nil && response.StatusCode() != http.StatusOK {
 			logger.Error("error when trying to register one or more event types - some event type will not be discoverable", zap.String("status", response.Status()), zap.String("body", string(response.Body)))
 		}
-		if response.StatusCode() == http.StatusOK {
+		if response != nil && response.StatusCode() == http.StatusOK {
 			break
 		}
 		time.Sleep(time.Second)
@@ -197,9 +201,11 @@ func main() {
 		)
 	}
 
-	// run any script that needs to be executed
-	scriptDirectory := filepath.Join(constants.DefaultConfigPath, "start.d")
-	command.ExecuteScripts(scriptDirectory)
+	// run any script that needs to be executed (Linux only)
+	if runtime.GOOS != "windows" {
+		scriptDirectory := filepath.Join(constants.DefaultConfigPath, "start.d")
+		command.ExecuteScripts(scriptDirectory)
+	}
 
 	if supported, err := daemon.SdNotify(false, daemon.SdNotifyReady); err != nil {
 		logger.Error("Failed to notify systemd that casaos main service is ready", zap.Any("error", err))

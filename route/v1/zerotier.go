@@ -6,6 +6,9 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -17,11 +20,24 @@ import (
 	"go.uber.org/zap"
 )
 
+func getZerotierCredFiles() (string, string) {
+	if runtime.GOOS == "windows" {
+		programData := os.Getenv("ProgramData")
+		if len(programData) == 0 {
+			programData = `C:\ProgramData`
+		}
+		return filepath.Join(programData, "ZeroTier", "One", "zerotier-one.port"),
+			filepath.Join(programData, "ZeroTier", "One", "authtoken.secret")
+	}
+	return "/var/lib/zerotier-one/zerotier-one.port", "/var/lib/zerotier-one/authtoken.secret"
+}
+
 func ZerotierProxy(ctx echo.Context) error {
 	// Read the port number from the file
 	w := ctx.Response().Writer
 	r := ctx.Request()
-	port, err := ioutil.ReadFile("/var/lib/zerotier-one/zerotier-one.port")
+	portFile, authFile := getZerotierCredFiles()
+	port, err := ioutil.ReadFile(portFile)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -40,7 +56,7 @@ func ZerotierProxy(ctx echo.Context) error {
 	}
 
 	// Add the X-ZT1-AUTH header
-	authToken, err := ioutil.ReadFile("/var/lib/zerotier-one/authtoken.secret")
+	authToken, err := ioutil.ReadFile(authFile)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

@@ -4,8 +4,24 @@ import (
 	"errors"
 	"net/url"
 	stdpath "path"
+	"path/filepath"
+	"runtime"
 	"strings"
 )
+
+func isWindowsDrivePath(path string) bool {
+	if len(path) >= 2 && path[1] == ':' {
+		c := path[0]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') {
+			return true
+		}
+	}
+	return false
+}
+
+func isUNCPath(path string) bool {
+	return strings.HasPrefix(path, `\\`) || strings.HasPrefix(path, "//")
+}
 
 // FixAndCleanPath
 // The upper layer of the root directory is still the root directory.
@@ -15,7 +31,14 @@ import (
 // 2. "../..." or "./..." => "/..."
 // 3. "../.x." or "./.x." => "/.x."
 // 4. "x//\\y" = > "/z/x"
+// On Windows: respects drive letters (e.g. C:/CasaOS/DATA) and UNC paths.
 func FixAndCleanPath(path string) string {
+	if runtime.GOOS == "windows" {
+		if isWindowsDrivePath(path) || isUNCPath(path) {
+			clean := filepath.Clean(path)
+			return filepath.ToSlash(clean)
+		}
+	}
 	path = strings.ReplaceAll(path, "\\", "/")
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
@@ -74,8 +97,13 @@ func EncodePath(path string, all ...bool) string {
 }
 
 func JoinBasePath(basePath, reqPath string) (string, error) {
-	if strings.HasSuffix(reqPath, "..") || strings.Contains(reqPath, "../") {
+	if strings.HasSuffix(reqPath, "..") || strings.Contains(reqPath, "../") || strings.Contains(reqPath, `..\`) {
 		return "", errors.New("access using relative path is not allowed")
+	}
+	if runtime.GOOS == "windows" && (isWindowsDrivePath(basePath) || isUNCPath(basePath)) {
+		cleanBase := FixAndCleanPath(basePath)
+		cleanReq := strings.TrimPrefix(FixAndCleanPath(reqPath), "/")
+		return filepath.ToSlash(filepath.Join(cleanBase, cleanReq)), nil
 	}
 	return stdpath.Join(FixAndCleanPath(basePath), FixAndCleanPath(reqPath)), nil
 }

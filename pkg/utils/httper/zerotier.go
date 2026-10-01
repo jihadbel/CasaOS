@@ -4,11 +4,27 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 )
 
+func getZeroTierPaths() (string, string) {
+	if runtime.GOOS == "windows" {
+		programData := os.Getenv("ProgramData")
+		if len(programData) == 0 {
+			programData = `C:\ProgramData`
+		}
+		return filepath.Join(programData, "ZeroTier", "One", "zerotier-one.port"),
+			filepath.Join(programData, "ZeroTier", "One", "authtoken.secret")
+	}
+	return "/var/lib/zerotier-one/zerotier-one.port", "/var/lib/zerotier-one/authtoken.secret"
+}
+
 func ZTGet(url string) ([]byte, error) {
-	port, err := ioutil.ReadFile("/var/lib/zerotier-one/zerotier-one.port")
+	portPath, authPath := getZeroTierPaths()
+	port, err := ioutil.ReadFile(portPath)
 	if err != nil {
 		return nil, err
 	}
@@ -23,7 +39,7 @@ func ZTGet(url string) ([]byte, error) {
 	}
 
 	// Add the X-ZT1-AUTH header
-	authToken, err := ioutil.ReadFile("/var/lib/zerotier-one/authtoken.secret")
+	authToken, err := ioutil.ReadFile(authPath)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +59,8 @@ func ZTGet(url string) ([]byte, error) {
 	return respBody, nil
 }
 func ZTPost(url string, body string) ([]byte, error) {
-	port, err := ioutil.ReadFile("/var/lib/zerotier-one/zerotier-one.port")
+	portPath, authPath := getZeroTierPaths()
+	port, err := ioutil.ReadFile(portPath)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +74,7 @@ func ZTPost(url string, body string) ([]byte, error) {
 	}
 
 	// Add the X-ZT1-AUTH header
-	authToken, err := ioutil.ReadFile("/var/lib/zerotier-one/authtoken.secret")
+	authToken, err := ioutil.ReadFile(authPath)
 	if err != nil {
 		return nil, err
 	}

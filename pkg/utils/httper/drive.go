@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/IceWhaleTech/CasaOS-Common/utils/logger"
@@ -45,19 +46,22 @@ var UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (K
 var DefaultTimeout = time.Second * 30
 
 func NewRestyClient() *resty.Client {
+	client := resty.New()
+	client.SetRetryCount(3).SetRetryWaitTime(5 * time.Second).SetTimeout(DefaultTimeout).SetHeader("User-Agent", UserAgent)
+
+	if runtime.GOOS == "windows" {
+		client.SetBaseURL("http://127.0.0.1:5572")
+		return client
+	}
 
 	unixSocket := "/var/run/rclone/rclone.sock"
-
 	transport := http.Transport{
 		Dial: func(_, _ string) (net.Conn, error) {
 			return net.Dial("unix", unixSocket)
 		},
 	}
 
-	client := resty.New()
-
 	client.SetTransport(&transport).SetBaseURL("http://localhost")
-	client.SetRetryCount(3).SetRetryWaitTime(5*time.Second).SetTimeout(DefaultTimeout).SetHeader("User-Agent", UserAgent)
 	return client
 }
 

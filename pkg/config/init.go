@@ -43,6 +43,22 @@ var (
 	ConfigFilePath string
 )
 
+func init() {
+	if runtime.GOOS == "windows" {
+		programData := os.Getenv("ProgramData")
+		if len(programData) == 0 {
+			programData = `C:\ProgramData`
+		}
+		casaData := filepath.Join(programData, "CasaOS")
+		AppInfo.DBPath = filepath.Join(casaData, "db")
+		AppInfo.LogPath = filepath.Join(casaData, "logs")
+		AppInfo.ShellPath = filepath.Join(casaData, "shell")
+		AppInfo.UserDataPath = filepath.Join(casaData, "conf")
+		CommonInfo.RuntimePath = filepath.Join(casaData, "run")
+		CasaOSConfigFilePath = filepath.Join(casaData, "conf", "casaos.conf")
+	}
+}
+
 // 初始化设置，获取系统的部分信息。
 func InitSetup(config string, sample string) {
 	ConfigFilePath = CasaOSConfigFilePath
@@ -53,6 +69,10 @@ func InitSetup(config string, sample string) {
 	// create default config file if not exist
 	if _, err := os.Stat(ConfigFilePath); os.IsNotExist(err) {
 		fmt.Println("config file not exist, create it")
+		// ensure parent directory exists
+		if err := os.MkdirAll(filepath.Dir(ConfigFilePath), 0o755); err != nil {
+			panic(err)
+		}
 		// create config file
 		file, err := os.Create(ConfigFilePath)
 		if err != nil {
