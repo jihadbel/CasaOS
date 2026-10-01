@@ -148,26 +148,29 @@ func InitV2DocRouter(docHTML string, docYAML string) http.Handler {
 
 func InitFile() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := r.URL.Query().Get("token")
-		if len(token) == 0 {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"message": "token not found"}`))
-			return
+		// In standalone mode, if external user service is not running, skip JWT check
+		if _, err := external.GetPublicKey(config.CommonInfo.RuntimePath); err == nil {
+			token := r.URL.Query().Get("token")
+			if len(token) == 0 {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte(`{"message": "token not found"}`))
+				return
+			}
+
+			valid, _, errs := jwt.Validate(token, func() (*ecdsa.PublicKey, error) { return external.GetPublicKey(config.CommonInfo.RuntimePath) })
+			if errs != nil || !valid {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte(`{"message": "validation failure"}`))
+				return
+			}
 		}
 
-		valid, _, errs := jwt.Validate(token, func() (*ecdsa.PublicKey, error) { return external.GetPublicKey(config.CommonInfo.RuntimePath) })
-		if errs != nil || !valid {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"message": "validation failure"}`))
-			return
-		}
 		filePath := r.URL.Query().Get("path")
 		fileName := path.Base(filePath)
 		w.Header().Add("Content-Disposition", "attachment; filename*=utf-8''"+url.PathEscape(fileName))
 		http.ServeFile(w, r, filePath)
-		// http.ServeFile(w, r, filePath)
 	})
 }
 

@@ -263,16 +263,47 @@ func (c *systemService) GetDirPathOne(path string) (m model.Path) {
 	return
 }
 
-func (c *systemService) GetDirPath(path string) ([]model.Path, error) {
-	if path == "/DATA" {
-		sysType := runtime.GOOS
-		if sysType == "windows" {
-			path = "C:\\CasaOS\\DATA"
+func getWindowsDrives() []model.Path {
+	var drives []model.Path
+	for _, letter := range "CDEFGHIJKLMNOPQRSTUVWXYZAB" {
+		drivePath := string(letter) + ":\\"
+		if _, err := os.Stat(drivePath); err == nil {
+			drives = append(drives, model.Path{
+				Name:  string(letter) + ": Drive",
+				Path:  string(letter) + ":\\",
+				IsDir: true,
+				Date:  time.Now(),
+			})
 		}
-		if sysType == "darwin" {
-			path = "./CasaOS/DATA"
-		}
+	}
+	return drives
+}
 
+func (c *systemService) GetDirPath(path string) ([]model.Path, error) {
+	if runtime.GOOS == "windows" {
+		if path == "/DATA" || path == "DATA" || path == "/DATA/" {
+			path = "C:\\CasaOS\\DATA"
+			os.MkdirAll(path, 0o755)
+		} else if path == "" || path == "/" || path == "/drives" {
+			// List all available Windows drives plus quick DATA shortcut
+			drives := getWindowsDrives()
+			dataFolder := model.Path{
+				Name:  "DATA (Default Storage)",
+				Path:  "C:\\CasaOS\\DATA",
+				IsDir: true,
+				Date:  time.Now(),
+			}
+			os.MkdirAll(dataFolder.Path, 0o755)
+			return append([]model.Path{dataFolder}, drives...), nil
+		} else if len(path) == 2 && path[1] == ':' {
+			path = path + "\\"
+		}
+	} else {
+		if path == "/DATA" {
+			if runtime.GOOS == "darwin" {
+				path = "./CasaOS/DATA"
+			}
+		}
 	}
 
 	ls, err := os.ReadDir(path)

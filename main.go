@@ -29,8 +29,11 @@ import (
 	"github.com/coreos/go-systemd/daemon"
 	"go.uber.org/zap"
 
+	"github.com/IceWhaleTech/CasaOS/pkg/utils/ip_helper"
 	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
+	"runtime"
+	"strings"
 )
 
 const LOCALHOST = "127.0.0.1"
@@ -49,6 +52,9 @@ var (
 
 	//go:embed build/sysroot/etc/casaos/casaos.conf.sample
 	_confSample string
+
+	//go:embed web/index.html
+	_webIndexHTML string
 
 	configFlag  = flag.String("c", "", "config address")
 	dbFlag      = flag.String("db", "", "db path")
@@ -129,11 +135,21 @@ func main() {
 	portToListen := "0"
 	if config.ServerInfo.HttpPort != "" {
 		portToListen = config.ServerInfo.HttpPort
+	} else if runtime.GOOS == "windows" {
+		portToListen = "8080"
 	}
 
-	listener, err := net.Listen("tcp", net.JoinHostPort(LOCALHOST, portToListen))
+	bindHost := LOCALHOST
+	if runtime.GOOS == "windows" {
+		bindHost = "" // Allow LAN/Wi-Fi devices to connect
+	}
+
+	listener, err := net.Listen("tcp", net.JoinHostPort(bindHost, portToListen))
 	if err != nil {
-		panic(err)
+		listener, err = net.Listen("tcp", net.JoinHostPort(bindHost, "0"))
+		if err != nil {
+			panic(err)
+		}
 	}
 	routers := []string{
 		"/v1/sys",
@@ -221,14 +237,38 @@ func main() {
 	// })
 	// go http.ListenAndServe(":8081", nil)
 
+	mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := r.URL.Path
+		if strings.HasPrefix(p, "/v1") || strings.HasPrefix(p, "/v2") || strings.HasPrefix(p, "/v3") || strings.HasPrefix(p, "/doc") || strings.HasPrefix(p, "/ping") {
+			mux.ServeHTTP(w, r)
+			return
+		}
+		// Serve embedded Web Dashboard
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(_webIndexHTML))
+	})
+
 	s := &http.Server{
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second, // fix G112: Potential slowloris attack (see https://github.com/securego/gosec)
+		Handler:           mainHandler,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	if runtime.GOOS == "windows" {
+		_, port, _ := net.SplitHostPort(listener.Addr().String())
+		fmt.Println("\n================================================================")
+		fmt.Println("  CasaOS Windows Home Cloud File & Photo Server is Running!")
+		fmt.Println("================================================================")
+		fmt.Printf("  💻 Local Dashboard  : http://localhost:%s\n", port)
+		for _, ip := range ip_helper.GetDeviceAllIPv4() {
+			fmt.Printf("  📱 Mobile / Wi-Fi   : http://%s:%s\n", ip, port)
+		}
+		fmt.Println("  📁 Default Storage  : C:\\CasaOS\\DATA")
+		fmt.Println("================================================================\n")
 	}
 
 	logger.Info("CasaOS main service is listening...", zap.Any("address", listener.Addr().String()))
-	// defer service.MyService.Storage().UnmountAllStorage()
-	err = s.Serve(listener) // not using http.serve() to fix G114: Use of net/http serve function that has no support for setting timeouts (see https://github.com/securego/gosec)
+	err = s.Serve(listener)
 	if err != nil {
 		panic(err)
 	}

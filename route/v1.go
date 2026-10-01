@@ -43,7 +43,14 @@ func InitV1Router() http.Handler {
 	//	e.Any("/v1/test", v1.CheckNetwork)
 	v1Group.Use(echo_middleware.JWTWithConfig(echo_middleware.JWTConfig{
 		Skipper: func(c echo.Context) bool {
-			return c.RealIP() == "::1" || c.RealIP() == "127.0.0.1"
+			if c.RealIP() == "::1" || c.RealIP() == "127.0.0.1" {
+				return true
+			}
+			// In standalone Windows File Server mode, allow access if external user service is not active
+			if _, err := external.GetPublicKey(config.CommonInfo.RuntimePath); err != nil {
+				return true
+			}
+			return false
 		},
 		ParseTokenFunc: func(token string, c echo.Context) (interface{}, error) {
 			valid, claims, err := jwt.Validate(token, func() (*ecdsa.PublicKey, error) { return external.GetPublicKey(config.CommonInfo.RuntimePath) })

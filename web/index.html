@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CasaOS | خادم الملفات والصور المنزلي</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0f141c;
+            --bg-surface: #171f2c;
+            --bg-card: rgba(28, 38, 54, 0.75);
+            --bg-card-hover: rgba(38, 52, 74, 0.85);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --accent-primary: #3b82f6;
+            --accent-primary-hover: #2563eb;
+            --accent-success: #10b981;
+            --accent-danger: #ef4444;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --font-main: 'Cairo', system-ui, -apple-system, sans-serif;
+            --font-code: 'Outfit', sans-serif;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+            --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+            --glass-blur: blur(16px);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: var(--font-main);
+            background: radial-gradient(circle at 10% 20%, #151d2a 0%, var(--bg-base) 90%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Header Bar */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: rgba(15, 20, 28, 0.85);
+            backdrop-filter: var(--glass-blur);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.8rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .logo-badge {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, #3b82f6, #06b6d4);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.25rem;
+            color: white;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+        }
+
+        .brand-title {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .brand-title h1 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .brand-title span {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.6rem 1.1rem;
+            border-radius: var(--radius-md);
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: inherit;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--accent-primary);
+            color: white;
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            border-color: var(--border-color);
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-card-hover);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .btn-icon {
+            padding: 0.6rem;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Storage Indicator in Header */
+        .storage-pill {
+            display: none;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            padding: 0.45rem 0.9rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        @media (min-width: 768px) {
+            .storage-pill {
+                display: flex;
+            }
+        }
+
+        .storage-bar-mini {
+            width: 60px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 9999px;
+            overflow: hidden;
+        }
+
+        .storage-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #3b82f6);
+            width: 30%;
+            transition: width 0.3s;
+        }
+
+        /* Main Container */
+        main {
+            flex: 1;
+            padding: 1.5rem;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        /* Breadcrumbs and Controls */
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            backdrop-filter: var(--glass-blur);
+            padding: 0.8rem 1.2rem;
+            border-radius: var(--radius-lg);
+        }
+
+        .breadcrumbs {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            overflow-x: auto;
+            font-size: 0.92rem;
+            white-space: nowrap;
+        }
+
+        .crumb-item {
+            color: var(--accent-primary);
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.2rem 0.4rem;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+
+        .crumb-item:hover {
+            background: rgba(59, 130, 246, 0.15);
+        }
+
+        .crumb-sep {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        .view-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .search-box {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-input {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.5rem 1rem 0.5rem 2.2rem;
+            border-radius: var(--radius-md);
+            font-size: 0.85rem;
+            outline: none;
+            transition: border 0.2s;
+            font-family: inherit;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-primary);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 0.8rem;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+
+        /* View Modes: Gallery & List */
+        .items-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 1rem;
+        }
+
+        @media (min-width: 640px) {
+            .items-grid {
+                grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+                gap: 1.25rem;
+            }
+        }
+
+        .file-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            user-select: none;
+        }
+
+        .file-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow: var(--shadow-card);
+            background: var(--bg-card-hover);
+        }
+
+        .card-preview {
+            width: 100%;
+            height: 140px;
+            background: rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s;
+        }
+
+        .file-card:hover .card-preview img {
+            transform: scale(1.05);
+        }
+
+        .card-preview .icon-placeholder {
+            font-size: 3rem;
+            color: var(--accent-primary);
+        }
+
+        .card-badge {
+            position: absolute;
+            top: 0.5rem;
+            left: 0.5rem;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+        }
+
+        .card-info {
+            padding: 0.75rem 0.9rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .card-name {
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: var(--text-main);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .card-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Drag & Drop Overlay */
+        .dropzone-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 20, 28, 0.9);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1.5rem;
+            border: 4px dashed var(--accent-primary);
+            margin: 1.5rem;
+            border-radius: var(--radius-xl);
+            pointer-events: none;
+        }
+
+        .dropzone-overlay.active {
+            display: flex;
+        }
+
+        .dropzone-icon {
+            font-size: 4rem;
+            color: var(--accent-primary);
+            animation: bounce 1s infinite alternate;
+        }
+
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-15px); }
+        }
+
+        /* Upload Progress Float */
+        .upload-tray {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 1.5rem;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 1rem 1.25rem;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
+            z-index: 90;
+            display: none;
+            width: 320px;
+            max-width: 90vw;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .upload-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 9999px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #06b6d4);
+            width: 0%;
+            transition: width 0.2s;
+        }
+
+        /* Modal Base */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            z-index: 110;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-xl);
+            max-width: 480px;
+            width: 100%;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+            box-shadow: var(--shadow-card);
+        }
+
+        /* Lightbox Viewer */
+        .lightbox-modal {
+            background: rgba(0, 0, 0, 0.95);
+            position: fixed;
+            inset: 0;
+            z-index: 120;
+            display: none;
+            flex-direction: column;
+        }
+
+        .lightbox-modal.active {
+            display: flex;
+        }
+
+        .lightbox-header {
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            background: rgba(0,0,0,0.5);
+        }
+
+        .lightbox-body {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            position: relative;
+        }
+
+        .lightbox-img {
+            max-width: 90vw;
+            max-height: 80vh;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+        }
+
+        .lightbox-video {
+            max-width: 90vw;
+            max-height: 80vh;
+            border-radius: 8px;
+            outline: none;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 4rem 1rem;
+            color: var(--text-muted);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .empty-icon {
+            font-size: 3.5rem;
+            opacity: 0.5;
+        }
+
+        /* QR Code & Phone Modal */
+        .qr-placeholder {
+            width: 200px;
+            height: 200px;
+            background: white;
+            padding: 0.8rem;
+            border-radius: var(--radius-md);
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .qr-placeholder img {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Hidden File Inputs */
+        #fileInput, #photoInput {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="brand-container">
+            <div class="logo-badge">C</div>
+            <div class="brand-title">
+                <h1>CasaOS Cloud</h1>
+                <span>خادم الملفات والصور المنزلي</span>
+            </div>
+        </div>
+
+        <div class="header-actions">
+            <!-- Storage status pill -->
+            <div class="storage-pill" id="storagePill">
+                <span>القرص: <strong id="storageUsedText">--</strong> / <span id="storageTotalText">--</span></span>
+                <div class="storage-bar-mini">
+                    <div class="storage-bar-fill" id="storageBarFill"></div>
+                </div>
+            </div>
+
+            <!-- Connect phone button -->
+            <button class="btn btn-secondary" onclick="openPhoneModal()">
+                📱 <span>ربط الجوال</span>
+            </button>
+
+            <!-- Upload button -->
+            <button class="btn btn-primary" onclick="triggerFileUpload()">
+                ⬆️ <span>رفع ملفات</span>
+            </button>
+            <input type="file" id="fileInput" multiple onchange="handleFileSelection(event)">
+            <input type="file" id="photoInput" accept="image/*,video/*" multiple onchange="handleFileSelection(event)">
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main>
+        <!-- Toolbar: Breadcrumbs & Controls -->
+        <div class="toolbar">
+            <div class="breadcrumbs" id="breadcrumbsContainer">
+                <span class="crumb-item" onclick="navigateTo('/')">🏠 الرئيسي</span>
+                <span class="crumb-sep">/</span>
+                <span class="crumb-item" onclick="navigateTo('/DATA')">DATA</span>
+            </div>
+
+            <div class="view-controls">
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" class="search-input" id="searchInput" placeholder="بحث بالاسم..." oninput="handleSearch(event)">
+                </div>
+
+                <button class="btn btn-secondary btn-icon" title="مجلد جديد" onclick="openNewFolderModal()">
+                    📁+
+                </button>
+                <button class="btn btn-secondary btn-icon" title="تحديث" onclick="refreshCurrentFolder()">
+                    🔄
+                </button>
+            </div>
+        </div>
+
+        <!-- Files & Media Grid -->
+        <div class="items-grid" id="itemsGrid">
+            <!-- File and Image cards injected dynamically -->
+        </div>
+
+        <!-- Empty state placeholder -->
+        <div class="empty-state" id="emptyState" style="display: none;">
+            <div class="empty-icon">📂</div>
+            <h3>المجلد فارغ حالياً</h3>
+            <p>يمكنك سحب وإفلات الصور والملفات هنا لرفعها مباشرة إلى جهازك.</p>
+            <button class="btn btn-primary" onclick="triggerFileUpload()">رفع ملفات الآن</button>
+        </div>
+    </main>
+
+    <!-- Fullscreen Dropzone Overlay -->
+    <div class="dropzone-overlay" id="dropOverlay">
+        <div class="dropzone-icon">📥</div>
+        <h2>أفلت الملفات والصور هنا لبدء الرفع فوراً</h2>
+        <p>سيتم حفظها في المجلد الحالي مباشرة</p>
+    </div>
+
+    <!-- Upload Progress Floating Tray -->
+    <div class="upload-tray" id="uploadTray">
+        <div class="upload-header">
+            <span id="uploadStatusText">جارٍ الرفع...</span>
+            <span id="uploadPercentText">0%</span>
+        </div>
+        <div class="progress-bar-container">
+            <div class="progress-bar" id="uploadProgressBar"></div>
+        </div>
+    </div>
+
+    <!-- Lightbox Viewer Modal -->
+    <div class="lightbox-modal" id="lightboxModal">
+        <div class="lightbox-header">
+            <span id="lightboxTitle">معاينة</span>
+            <div style="display: flex; gap: 0.5rem;">
+                <a class="btn btn-secondary btn-icon" id="lightboxDownloadBtn" download>⬇️</a>
+                <button class="btn btn-secondary btn-icon" onclick="closeLightbox()">✖</button>
+            </div>
+        </div>
+        <div class="lightbox-body" id="lightboxBody">
+            <!-- Image or Video tag injected here -->
+        </div>
+    </div>
+
+    <!-- Connect Phone Modal (QR Code) -->
+    <div class="modal" id="phoneModal">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>📱 فتح السيرفر من هاتفك</h3>
+                <button class="btn btn-secondary btn-icon" onclick="closePhoneModal()">✖</button>
+            </div>
+            <p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.5;">
+                تأكد من اتصال هاتفك بنفس شبكة الـ Wi-Fi، ثم افتح كاميرا الهاتف وامسح الكود لرفع الصور فوراً من ألبوم الهاتف:
+            </p>
+            <div class="qr-placeholder" id="qrContainer">
+                <img id="qrImage" src="" alt="QR Code">
+            </div>
+            <div style="text-align: center; font-size: 0.88rem; color: var(--accent-primary); font-family: var(--font-code);" id="lanUrlText">
+                http://localhost:8080
+            </div>
+            <button class="btn btn-primary" onclick="triggerMobilePhotoUpload()" style="margin-top: 0.5rem;">
+                📸 رفع صور من ألبوم الهاتف
+            </button>
+        </div>
+    </div>
+
+    <!-- New Folder Modal -->
+    <div class="modal" id="newFolderModal">
+        <div class="modal-content">
+            <h3>إنشاء مجلد جديد</h3>
+            <input type="text" id="folderNameInput" class="search-input" style="width: 100%; padding: 0.75rem 1rem;" placeholder="اسم المجلد الجديد...">
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                <button class="btn btn-secondary" onclick="closeNewFolderModal()">إلغاء</button>
+                <button class="btn btn-primary" onclick="submitCreateFolder()">إنشاء</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let currentPath = '/DATA';
+        let allItems = [];
+        let filteredItems = [];
+
+        // App Initialization
+        document.addEventListener('DOMContentLoaded', () => {
+            setupDragAndDrop();
+            loadCurrentFolder();
+            loadStorageStats();
+            setupPhoneQRCode();
+        });
+
+        // Navigation
+        function navigateTo(path) {
+            currentPath = path;
+            loadCurrentFolder();
+        }
+
+        async function loadCurrentFolder() {
+            renderBreadcrumbs();
+            const grid = document.getElementById('itemsGrid');
+            const empty = document.getElementById('emptyState');
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem;">جارٍ تحميل المحتويات...</div>';
+            empty.style.display = 'none';
+
+            try {
+                const res = await fetch(`/v1/folder?path=${encodeURIComponent(currentPath)}`);
+                const json = await res.json();
+                if (json.success === 200 && json.data && json.data.content) {
+                    allItems = json.data.content;
+                    filteredItems = [...allItems];
+                    renderItems();
+                } else {
+                    grid.innerHTML = `<div style="grid-column: 1/-1; color: var(--accent-danger); text-align: center;">تعذر قراءة المجلد: ${json.message || 'خطأ غير معروف'}</div>`;
+                }
+            } catch (err) {
+                console.error(err);
+                grid.innerHTML = `<div style="grid-column: 1/-1; color: var(--accent-danger); text-align: center;">خطأ في الاتصال بالخادم</div>`;
+            }
+        }
+
+        function renderBreadcrumbs() {
+            const container = document.getElementById('breadcrumbsContainer');
+            const parts = currentPath.split(/[/\\]+/).filter(Boolean);
+            let html = `<span class="crumb-item" onclick="navigateTo('/')">🏠 الأقراص</span>`;
+            
+            let accumulated = '';
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
+                if (i === 0 && part.includes(':')) {
+                    accumulated = part + '\\';
+                } else {
+                    accumulated += (accumulated.endsWith('\\') || accumulated.endsWith('/') ? '' : '/') + part;
+                }
+                html += `<span class="crumb-sep">/</span><span class="crumb-item" onclick="navigateTo('${accumulated.replace(/\\/g, '\\\\')}')">${part}</span>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function renderItems() {
+            const grid = document.getElementById('itemsGrid');
+            const empty = document.getElementById('emptyState');
+
+            if (filteredItems.length === 0) {
+                grid.innerHTML = '';
+                empty.style.display = 'flex';
+                return;
+            }
+
+            empty.style.display = 'none';
+            grid.innerHTML = filteredItems.map(item => {
+                const isImage = isImageFile(item.name);
+                const isVideo = isVideoFile(item.name);
+                let previewHtml = '';
+
+                if (item.is_dir) {
+                    previewHtml = '<span class="icon-placeholder">📁</span>';
+                } else if (isImage) {
+                    const thumbUrl = `/v1/image?path=${encodeURIComponent(item.path)}`;
+                    previewHtml = `<img src="${thumbUrl}" loading="lazy" alt="${item.name}">`;
+                } else if (isVideo) {
+                    previewHtml = '<span class="icon-placeholder">🎬</span><span class="card-badge">فيديو</span>';
+                } else {
+                    previewHtml = '<span class="icon-placeholder">📄</span>';
+                }
+
+                const sizeStr = item.is_dir ? 'مجلد' : formatBytes(item.size);
+
+                return `
+                    <div class="file-card" onclick="handleItemClick('${encodeURIComponent(item.path)}', ${item.is_dir})">
+                        <div class="card-preview">
+                            ${previewHtml}
+                        </div>
+                        <div class="card-info">
+                            <div class="card-name" title="${item.name}">${item.name}</div>
+                            <div class="card-meta">
+                                <span>${sizeStr}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function handleItemClick(encodedPath, isDir) {
+            const path = decodeURIComponent(encodedPath);
+            if (isDir) {
+                navigateTo(path);
+            } else if (isImageFile(path)) {
+                openLightboxImage(path);
+            } else if (isVideoFile(path)) {
+                openLightboxVideo(path);
+            } else {
+                // Download file directly
+                window.location.href = `/v1/file?path=${encodeURIComponent(path)}`;
+            }
+        }
+
+        function isImageFile(name) {
+            return /\.(jpg|jpeg|png|webp|gif|svg|bmp)$/i.test(name);
+        }
+
+        function isVideoFile(name) {
+            return /\.(mp4|mkv|webm|mov|avi|m4v)$/i.test(name);
+        }
+
+        function formatBytes(bytes, decimals = 1) {
+            if (!+bytes) return '0 B';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+        }
+
+        function handleSearch(e) {
+            const q = e.target.value.toLowerCase().trim();
+            if (!q) {
+                filteredItems = [...allItems];
+            } else {
+                filteredItems = allItems.filter(item => item.name.toLowerCase().includes(q));
+            }
+            renderItems();
+        }
+
+        // Upload Handlers
+        function triggerFileUpload() {
+            document.getElementById('fileInput').click();
+        }
+
+        function triggerMobilePhotoUpload() {
+            closePhoneModal();
+            document.getElementById('photoInput').click();
+        }
+
+        async function handleFileSelection(e) {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+            await uploadFiles(files);
+            e.target.value = '';
+        }
+
+        async function uploadFiles(files) {
+            const tray = document.getElementById('uploadTray');
+            const bar = document.getElementById('uploadProgressBar');
+            const percentText = document.getElementById('uploadPercentText');
+            const statusText = document.getElementById('uploadStatusText');
+
+            tray.style.display = 'flex';
+            bar.style.width = '0%';
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                statusText.innerText = `رفع (${i + 1}/${files.length}): ${file.name}`;
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('path', currentPath);
+
+                await new Promise((resolve) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/v1/file/upload', true);
+
+                    xhr.upload.onprogress = (e) => {
+                        if (e.lengthComputable) {
+                            const percent = Math.round((e.loaded / e.total) * 100);
+                            bar.style.width = `${percent}%`;
+                            percentText.innerText = `${percent}%`;
+                        }
+                    };
+
+                    xhr.onload = () => resolve();
+                    xhr.onerror = () => resolve();
+                    xhr.send(formData);
+                });
+            }
+
+            statusText.innerText = 'تم الرفع بنجاح!';
+            bar.style.width = '100%';
+            setTimeout(() => {
+                tray.style.display = 'none';
+                loadCurrentFolder();
+                loadStorageStats();
+            }, 1200);
+        }
+
+        // Drag & Drop
+        function setupDragAndDrop() {
+            const overlay = document.getElementById('dropOverlay');
+            window.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                overlay.classList.add('active');
+            });
+            overlay.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                overlay.classList.remove('active');
+            });
+            window.addEventListener('drop', (e) => {
+                e.preventDefault();
+                overlay.classList.remove('active');
+                if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+                    uploadFiles(e.dataTransfer.files);
+                }
+            });
+        }
+
+        // Lightbox
+        function openLightboxImage(path) {
+            const modal = document.getElementById('lightboxModal');
+            const body = document.getElementById('lightboxBody');
+            const title = document.getElementById('lightboxTitle');
+            const download = document.getElementById('lightboxDownloadBtn');
+
+            title.innerText = path.split(/[/\\]+/).pop();
+            const url = `/v1/file?path=${encodeURIComponent(path)}`;
+            download.href = url;
+            body.innerHTML = `<img src="${url}" class="lightbox-img" alt="preview">`;
+            modal.classList.add('active');
+        }
+
+        function openLightboxVideo(path) {
+            const modal = document.getElementById('lightboxModal');
+            const body = document.getElementById('lightboxBody');
+            const title = document.getElementById('lightboxTitle');
+            const download = document.getElementById('lightboxDownloadBtn');
+
+            title.innerText = path.split(/[/\\]+/).pop();
+            const url = `/v1/file?path=${encodeURIComponent(path)}`;
+            download.href = url;
+            body.innerHTML = `<video controls autoplay class="lightbox-video"><source src="${url}" type="video/mp4">المتصفح لا يدعم هذا الفيديو</video>`;
+            modal.classList.add('active');
+        }
+
+        function closeLightbox() {
+            const modal = document.getElementById('lightboxModal');
+            const body = document.getElementById('lightboxBody');
+            body.innerHTML = '';
+            modal.classList.remove('active');
+        }
+
+        // Storage Stats
+        async function loadStorageStats() {
+            try {
+                const res = await fetch('/v1/sys/hardware');
+                const json = await res.json();
+                if (json.success === 200 && json.data && json.data.disk) {
+                    const disk = json.data.disk;
+                    const usedText = formatBytes(disk.used);
+                    const totalText = formatBytes(disk.total);
+                    document.getElementById('storageUsedText').innerText = usedText;
+                    document.getElementById('storageTotalText').innerText = totalText;
+                    document.getElementById('storageBarFill').style.width = `${Math.min(disk.usedPercent, 100)}%`;
+                }
+            } catch (err) {
+                console.error("Storage stats error", err);
+            }
+        }
+
+        // QR Code & Phone Linking
+        function setupPhoneQRCode() {
+            const host = window.location.hostname;
+            const port = window.location.port || '8080';
+            const url = `http://${host}:${port}`;
+            document.getElementById('lanUrlText').innerText = url;
+            // Generate QR Code via standard API
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
+            document.getElementById('qrImage').src = qrUrl;
+        }
+
+        function openPhoneModal() {
+            document.getElementById('phoneModal').classList.add('active');
+        }
+        function closePhoneModal() {
+            document.getElementById('phoneModal').classList.remove('active');
+        }
+
+        // New Folder Modal
+        function openNewFolderModal() {
+            document.getElementById('folderNameInput').value = '';
+            document.getElementById('newFolderModal').classList.add('active');
+            setTimeout(() => document.getElementById('folderNameInput').focus(), 100);
+        }
+        function closeNewFolderModal() {
+            document.getElementById('newFolderModal').classList.remove('active');
+        }
+        async function submitCreateFolder() {
+            const name = document.getElementById('folderNameInput').value.trim();
+            if (!name) return;
+            const newPath = currentPath.endsWith('/') || currentPath.endsWith('\\') ? currentPath + name : currentPath + '/' + name;
+            try {
+                const res = await fetch('/v1/folder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: newPath })
+                });
+                closeNewFolderModal();
+                loadCurrentFolder();
+            } catch (err) {
+                alert('فشل إنشاء المجلد');
+            }
+        }
+
+        function refreshCurrentFolder() {
+            loadCurrentFolder();
+            loadStorageStats();
+        }
+    </script>
+</body>
+</html>
