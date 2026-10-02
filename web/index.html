@@ -11,7 +11,7 @@
 
     <style>
         :root {
-            /* Color System - Clean Light Palette */
+            /* Color System - Clean High-End Light Palette */
             --bg-body: #f8fafc;
             --bg-surface: #ffffff;
             --bg-sidebar: #f8fafc;
@@ -441,9 +441,7 @@
             max-width: 1600px;
         }
 
-        /* ==========================================================================
-           DEDICATED DASHBOARD VIEW STYLING
-           ========================================================================== */
+        /* Views */
         .view-section {
             display: none;
             flex-direction: column;
@@ -600,7 +598,7 @@
         }
 
         .metric-value {
-            font-size: 1.65rem;
+            font-size: 1.55rem;
             font-weight: 800;
             color: var(--text-main);
             font-family: var(--font-en);
@@ -611,7 +609,7 @@
         }
 
         .metric-unit {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             font-weight: 600;
             color: var(--text-muted);
         }
@@ -1699,7 +1697,7 @@
                 <span>الصور والمعرض</span>
             </button>
             <button class="header-tab-btn" id="topTabSettings" onclick="openSettingsModal()">
-                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 <span>إعدادات المسارات</span>
             </button>
         </div>
@@ -1734,7 +1732,7 @@
                         <span>لوحة التحكم ومراقبة النظام</span>
                     </li>
                     <li class="nav-item" id="sideNavSettings" onclick="openSettingsModal()">
-                        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                         <span>إعدادات المسارات والتخزين</span>
                     </li>
                 </ul>
@@ -1742,7 +1740,7 @@
                 <div class="nav-section-title">المكتبات المصنفة ذكياً</div>
                 <ul class="nav-list">
                     <li class="nav-item" id="navAllFiles" onclick="navigateToFolder(appSettings.defaultPath || '/DATA')">
-                        <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                        <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 17 22 12"/></svg>
                         <span>جميع الملفات (DATA)</span>
                     </li>
                     <li class="nav-item" id="navPhotos" onclick="navigateToCategory('photos')">
@@ -1821,7 +1819,7 @@
                                 <span>الخادم متصل ونشط</span>
                             </div>
                         </div>
-                        <p class="hero-subtitle">مراقبة حية لاستهلاك المعالج، الرام، الأقراص والبارتشنات مع دعم البرامج (EXE, MSI, APK) والمضغوطة</p>
+                        <p class="hero-subtitle">مراقبة حية لاستهلاك المعالج، الرام، الأقراص وسرعة تدفق الشبكة مع التصنيف الذكي للملفات</p>
                     </div>
 
                     <div class="hero-meta-pills">
@@ -1834,7 +1832,7 @@
                             <span id="heroPartitionsCount">3 بارتشنات مفحوصة</span>
                         </div>
                         <button class="btn btn-secondary btn-icon-only" onclick="openSettingsModal()" title="إعدادات المسارات">
-                            <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                            <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                         </button>
                     </div>
                 </div>
@@ -1901,20 +1899,25 @@
                         </div>
                     </div>
 
-                    <!-- 4. Network Status Card -->
+                    <!-- 4. Dynamic Network Card (Real Active Adapter & Real Live Speed) -->
                     <div class="metric-card">
                         <div class="metric-header">
-                            <span class="metric-label">حركة ومحول الشبكة</span>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span class="metric-label">تدفق الشبكة</span>
+                                <span class="status-badge" id="netStateBadge" style="padding: 1px 6px; font-size: 0.7rem;">
+                                    <span class="status-badge-dot" style="width: 6px; height: 6px;"></span>
+                                    <span id="netAdapterName">Wi-Fi</span>
+                                </span>
+                            </div>
                             <div class="metric-badge-icon" style="background: var(--net-bg); color: var(--net-color);">
                                 <svg class="icon" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
                             </div>
                         </div>
-                        <div class="metric-value">
-                            <span id="netSpeedText" style="font-size: 1.25rem;">Wi-Fi</span>
-                            <span class="metric-unit" id="netStateBadge" style="color: var(--success); font-weight: 700;">متصل</span>
+                        <div class="metric-value" style="font-size: 1.15rem; gap: 0.35rem;">
+                            <span id="netSpeedText">0 KB/s</span>
                         </div>
                         <div class="metric-progress-track">
-                            <div class="metric-progress-fill" id="netBar" style="background: var(--net-color); width: 100%;"></div>
+                            <div class="metric-progress-fill" id="netBar" style="background: linear-gradient(90deg, #d97706, #f59e0b); width: 2%;"></div>
                         </div>
                         <div class="metric-footer">
                             <span id="netIpText">192.168.1.35</span>
@@ -2041,7 +2044,7 @@
                 <!-- Filter Chips -->
                 <div class="filter-chips">
                     <button class="chip active" id="filterAll" onclick="setCategoryFilter('all')">
-                        <svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                        <svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 17 22 12"/></svg>
                         <span>الكل (<span id="countAll">0</span>)</span>
                     </button>
                     <button class="chip" id="filterApps" onclick="setCategoryFilter('apps')">
@@ -2102,7 +2105,7 @@
         <div class="modal-card">
             <div class="modal-header">
                 <div class="modal-title">
-                    <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                     <span>إعدادات مسارات التخزين والتصنيف</span>
                 </div>
                 <button class="modal-close" onclick="closeSettingsModal()">
@@ -2323,7 +2326,7 @@
             <span>الداش بورد</span>
         </button>
         <button class="mobile-nav-btn" id="mobTabFiles" onclick="switchMainTab('files')">
-            <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+            <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 17 22 12"/></svg>
             <span>الملفات</span>
         </button>
         <button class="mobile-nav-btn" id="mobTabPhotos" onclick="navigateToCategory('photos')">
@@ -2331,7 +2334,7 @@
             <span>الصور</span>
         </button>
         <button class="mobile-nav-btn" onclick="openSettingsModal()">
-            <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             <span>المسارات</span>
         </button>
     </nav>
@@ -2373,6 +2376,7 @@
         let activeFilter = 'all';
         let viewMode = 'grid'; // 'grid' | 'list'
         let lastDisksData = [];
+        let lastNetStats = { recv: 0, sent: 0, time: 0 };
 
         // SVG Icon Presets
         const ICONS = {
@@ -2394,7 +2398,7 @@
             applySettingsToUI();
             loadLiveMetrics();
             setupPhoneQRCode();
-            setInterval(loadLiveMetrics, 2500);
+            setInterval(loadLiveMetrics, 2000);
         });
 
         // Settings Manager
@@ -2954,7 +2958,7 @@
 
                                     <div class="disk-card-actions">
                                         <button class="btn btn-secondary" onclick="navigateToFolder('${d.path.replace(/\\/g, '\\\\')}')" style="height: 36px; font-size: 0.82rem; width: 100%;">
-                                            <svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                                            <svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 17 22 12"/></svg>
                                             <span>تصفح ملفات القرص (${driveLetter}:)</span>
                                         </button>
                                     </div>
@@ -2982,14 +2986,51 @@
                         document.getElementById('storageFreeText').innerText = formatBytes(freeAll);
                     }
 
-                    // 4. Network Update
+                    // 4. Network Update - Smart detection of real active network adapter
                     if (data.net && data.net.length > 0) {
-                        const activeNet = data.net.find(n => n.state === 'up' && (n.name.includes('Wi-Fi') || n.name.includes('Ethernet'))) || data.net[0];
+                        // Filter for active adapters with actual bytes traffic
+                        const validNets = data.net.filter(n => n.state === 'up' && (n.bytesRecv > 0 || n.bytesSent > 0));
+                        // Sort by total traffic transferred (highest first)
+                        validNets.sort((a, b) => (b.bytesRecv + b.bytesSent) - (a.bytesRecv + a.bytesSent));
+
+                        // Find best matching active adapter (prioritizing Wi-Fi / Physical Ethernet)
+                        let activeNet = validNets.find(n => n.name.includes('Wi-Fi')) 
+                            || validNets.find(n => n.name.includes('Ethernet') && !n.name.includes('*') && !n.name.includes('vEthernet') && !n.name.includes('VMnet'))
+                            || validNets[0] 
+                            || data.net.find(n => n.state === 'up')
+                            || data.net[0];
+
                         if (activeNet) {
                             const nameClean = activeNet.name.replace(/\(.*\)/, '').trim();
-                            document.getElementById('netSpeedText').innerText = nameClean;
-                            document.getElementById('netStateBadge').innerText = activeNet.state === 'up' ? 'نشط ومتصل' : 'معطل';
-                            document.getElementById('netStateBadge').style.color = activeNet.state === 'up' ? 'var(--success)' : 'var(--danger)';
+                            const isOnline = activeNet.state === 'up' && (activeNet.bytesRecv > 0 || activeNet.bytesSent > 0);
+                            
+                            document.getElementById('netAdapterName').innerText = nameClean;
+                            const badge = document.getElementById('netStateBadge');
+                            badge.style.background = isOnline ? 'var(--ram-bg)' : 'var(--bg-body)';
+                            badge.style.color = isOnline ? 'var(--ram-color)' : 'var(--text-muted)';
+                            badge.querySelector('.status-badge-dot').style.background = isOnline ? 'var(--success)' : 'var(--text-muted)';
+
+                            // Calculate live speed rate
+                            const now = Date.now();
+                            if (lastNetStats.time > 0 && lastNetStats.name === activeNet.name) {
+                                const dt = (now - lastNetStats.time) / 1000;
+                                const dRecv = Math.max(0, activeNet.bytesRecv - lastNetStats.recv);
+                                const dSent = Math.max(0, activeNet.bytesSent - lastNetStats.sent);
+                                const speedRecv = dt > 0 ? (dRecv / dt) : 0;
+                                const speedSent = dt > 0 ? (dSent / dt) : 0;
+                                const totalSpeed = speedRecv + speedSent;
+
+                                document.getElementById('netSpeedText').innerText = `${formatSpeed(speedRecv)} ⬇ | ${formatSpeed(speedSent)} ⬆`;
+
+                                // Dynamic scale for network throughput bar (scaled relative to 5MB/s active LAN/WAN traffic)
+                                const netMeter = Math.min(100, Math.max(3, Math.round((totalSpeed / (5 * 1024 * 1024)) * 100)));
+                                document.getElementById('netBar').style.width = `${isOnline ? netMeter : 0}%`;
+                            } else {
+                                document.getElementById('netSpeedText').innerText = `متصل وجاهز`;
+                                document.getElementById('netBar').style.width = isOnline ? '5%' : '0%';
+                            }
+
+                            lastNetStats = { name: activeNet.name, recv: activeNet.bytesRecv, sent: activeNet.bytesSent, time: now };
                             document.getElementById('netTotalTraffic').innerText = `إرسال: ${formatBytes(activeNet.bytesSent)} | استلام: ${formatBytes(activeNet.bytesRecv)}`;
                         }
                     }
@@ -3057,6 +3098,13 @@
             const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+        }
+
+        function formatSpeed(bytesPerSec) {
+            if (!bytesPerSec || bytesPerSec <= 0) return '0 KB/s';
+            if (bytesPerSec < 1024) return `${Math.round(bytesPerSec)} B/s`;
+            if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
+            return `${(bytesPerSec / (1024 * 1024)).toFixed(2)} MB/s`;
         }
 
         function formatDate(dateStr) {
