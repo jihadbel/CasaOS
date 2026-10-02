@@ -488,91 +488,88 @@ func GetFileUpload(ctx echo.Context) error {
 // @Success 200 {string} string "ok"
 // @Router /file/upload [post]
 func PostFileUpload(ctx echo.Context) error {
-	f, _, _ := ctx.Request().FormFile("file")
+	f, fileHeader, err := ctx.Request().FormFile("file")
+	if err != nil || f == nil {
+		logger.Error("error when reading multipart file", zap.Error(err))
+		return ctx.JSON(http.StatusBadRequest, model.Result{Success: common_err.INVALID_PARAMS, Message: "File missing or invalid"})
+	}
+	defer f.Close()
+
 	relative := ctx.FormValue("relativePath")
 	fileName := ctx.FormValue("filename")
+	if len(fileName) == 0 && fileHeader != nil {
+		fileName = fileHeader.Filename
+	}
+	if len(relative) == 0 {
+		relative = fileName
+	}
+
+	rawPath := ctx.FormValue("path")
+	if len(rawPath) == 0 || rawPath == "/" {
+		rawPath = `C:\CasaOS\DATA`
+	}
+	if strings.HasPrefix(rawPath, "/DATA") {
+		rawPath = filepath.Join(`C:\CasaOS`, rawPath)
+	}
+
+	targetDir := rawPath
+	if fileName != relative {
+		dirPath := strings.TrimSuffix(relative, fileName)
+		targetDir = filepath.Join(rawPath, dirPath)
+	}
+
+	if err := os.MkdirAll(targetDir, os.ModePerm); err != nil {
+		logger.Error("failed to create directory for upload", zap.String("dir", targetDir), zap.Error(err))
+		return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
+	}
+
+	finalFilePath := filepath.Join(targetDir, fileName)
+
 	totalChunks, _ := strconv.Atoi(utils.DefaultPostForm(ctx, "totalChunks", "0"))
 	chunkNumber := ctx.FormValue("chunkNumber")
-	dirPath := ""
-	path := ctx.FormValue("path")
-
-	hash := file.GetHashByContent([]byte(fileName))
-
-	if len(path) == 0 {
-		logger.Error("path should not be empty")
-		return ctx.JSON(http.StatusBadRequest, model.Result{Success: common_err.INVALID_PARAMS, Message: common_err.GetMsg(common_err.INVALID_PARAMS)})
-	}
-	tempDir := filepath.Join(path, ".temp", hash+strconv.Itoa(totalChunks)) + "/"
-
-	if fileName != relative {
-		dirPath = strings.TrimSuffix(relative, fileName)
-		tempDir += dirPath
-		if err := file.MkDir(path + "/" + dirPath); err != nil {
-			logger.Error("error when trying to create `"+path+"/"+dirPath+"`", zap.Error(err))
-			return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
-		}
-	}
-
-	path += "/" + relative
-
-	if !file.CheckNotExist(tempDir + chunkNumber) {
-		if err := file.RMDir(tempDir + chunkNumber); err != nil {
-			logger.Error("error when trying to remove existing `"+tempDir+chunkNumber+"`", zap.Error(err))
-			return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
-		}
-	}
 
 	if totalChunks > 1 {
-		if err := file.IsNotExistMkDir(tempDir); err != nil {
-			logger.Error("error when trying to create `"+tempDir+"`", zap.Error(err))
-			return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
-		}
+		hash := file.GetHashByContent([]byte(fileName))
+		tempDir := filepath.Join(targetDir, ".temp", hash+strconv.Itoa(totalChunks))
+		_ = os.MkdirAll(tempDir, os.ModePerm)
 
-		out, err := os.OpenFile(tempDir+chunkNumber, os.O_WRONLY|os.O_CREATE, 0o644)
+		chunkFile := filepath.Join(tempDir, chunkNumber)
+		out, err := os.OpenFile(chunkFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
 		if err != nil {
-			logger.Error("error when trying to open `"+tempDir+chunkNumber+"` for creation", zap.Error(err))
+			logger.Error("error opening chunk file", zap.Error(err))
 			return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
 		}
-
-		defer out.Close()
-
-		if _, err := io.Copy(out, f); err != nil { // recommend to use https://github.com/iceber/iouring-go for faster copy
-			logger.Error("error when trying to write to `"+tempDir+chunkNumber+"`", zap.Error(err))
+		if _, err := io.Copy(out, f); err != nil {
+			out.Close()
 			return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
 		}
+		out.Close()
 
 		fileNum, err := ioutil.ReadDir(tempDir)
-		if err != nil {
-			logger.Error("error when trying to read number of files under `"+tempDir+"`", zap.Error(err))
-			return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
-		}
-
-		if totalChunks == len(fileNum) {
-			if err := file.SpliceFiles(tempDir, path, totalChunks, 1); err != nil {
-				logger.Error("error when trying to splice files under `"+tempDir+"`", zap.Error(err))
+		if err == nil && totalChunks == len(fileNum) {
+			if err := file.SpliceFiles(tempDir+"/", finalFilePath, totalChunks, 1); err != nil {
+				logger.Error("error splicing chunks", zap.Error(err))
 				return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
 			}
 			go func() {
-				time.Sleep(11 * time.Second)
-				if err := file.RMDir(tempDir); err != nil {
-					logger.Error("error when trying to remove `"+tempDir+"`", zap.Error(err))
-				}
+				time.Sleep(5 * time.Second)
+				_ = os.RemoveAll(tempDir)
 			}()
 		}
 	} else {
-		out, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0o644)
+		out, err := os.OpenFile(finalFilePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
 		if err != nil {
-			logger.Error("error when trying to open `"+path+"` for creation", zap.Error(err))
+			logger.Error("error creating uploaded file", zap.String("path", finalFilePath), zap.Error(err))
 			return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
 		}
-
 		defer out.Close()
 
-		if _, err := io.Copy(out, f); err != nil { // recommend to use https://github.com/iceber/iouring-go for faster copy
-			logger.Error("error when trying to write to `"+path+"`", zap.Error(err))
-			return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: common_err.GetMsg(common_err.SERVICE_ERROR), Data: err.Error()})
+		if _, err := io.Copy(out, f); err != nil {
+			logger.Error("error writing uploaded file", zap.String("path", finalFilePath), zap.Error(err))
+			return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
 		}
 	}
+
 	return ctx.JSON(http.StatusOK, model.Result{Success: common_err.SUCCESS, Message: common_err.GetMsg(common_err.SUCCESS)})
 }
 

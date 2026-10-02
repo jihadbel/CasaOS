@@ -679,8 +679,14 @@
             <div class="qr-placeholder" id="qrContainer">
                 <img id="qrImage" src="" alt="QR Code">
             </div>
-            <div style="text-align: center; font-size: 0.88rem; color: var(--accent-primary); font-family: var(--font-code);" id="lanUrlText">
-                http://localhost:8080
+            <div style="text-align: center; margin: 0.5rem 0;">
+                <div style="font-size: 0.88rem; color: var(--accent-primary); font-family: var(--font-code); font-weight: 600;" id="lanUrlText">
+                    http://192.168.1.35:8080
+                </div>
+                <div style="margin-top: 0.4rem; display: flex; justify-content: center; gap: 0.5rem; align-items: center;">
+                    <span style="font-size: 0.78rem; color: var(--text-muted);">عنوان IP الحاسوب:</span>
+                    <input type="text" id="customIpInput" value="192.168.1.35" style="width: 140px; padding: 0.25rem 0.5rem; font-size: 0.8rem; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); text-align: center;" oninput="updateQRCodeUrl(this.value)">
+                </div>
             </div>
             <button class="btn btn-primary" onclick="triggerMobilePhotoUpload()" style="margin-top: 0.5rem;">
                 📸 رفع صور من ألبوم الهاتف
@@ -879,6 +885,8 @@
                 
                 const formData = new FormData();
                 formData.append('file', file);
+                formData.append('filename', file.name);
+                formData.append('relativePath', file.name);
                 formData.append('path', currentPath);
 
                 await new Promise((resolve) => {
@@ -982,13 +990,24 @@
 
         // QR Code & Phone Linking
         function setupPhoneQRCode() {
-            const host = window.location.hostname;
+            let host = window.location.hostname;
+            if (host === 'localhost' || host === '127.0.0.1' || host === '') {
+                host = '192.168.1.35';
+            }
+            const input = document.getElementById('customIpInput');
+            if (input) input.value = host;
+            updateQRCodeUrl(host);
+        }
+
+        function updateQRCodeUrl(host) {
+            host = host.trim() || '192.168.1.35';
             const port = window.location.port || '8080';
             const url = `http://${host}:${port}`;
-            document.getElementById('lanUrlText').innerText = url;
-            // Generate QR Code via standard API
+            const urlEl = document.getElementById('lanUrlText');
+            if (urlEl) urlEl.innerText = url;
             const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
-            document.getElementById('qrImage').src = qrUrl;
+            const qrImg = document.getElementById('qrImage');
+            if (qrImg) qrImg.src = qrUrl;
         }
 
         function openPhoneModal() {
