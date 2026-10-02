@@ -253,10 +253,16 @@ func main() {
 			mux.ServeHTTP(w, r)
 			return
 		}
-		// Serve embedded Web Dashboard
+		// Serve Web Dashboard (try live file first for instant updates, fallback to embedded)
+		var htmlContent []byte
+		if content, err := os.ReadFile("web/index.html"); err == nil {
+			htmlContent = content
+		} else {
+			htmlContent = []byte(_webIndexHTML)
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(_webIndexHTML))
+		w.Write(htmlContent)
 	})
 
 	s := &http.Server{
