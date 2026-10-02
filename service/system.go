@@ -51,6 +51,7 @@ type SystemService interface {
 	GetDirPathOne(path string) (m model.Path)
 	GetNetState(name string) string
 	GetDiskInfo() *disk.UsageStat
+	GetAllDisksInfo() []map[string]interface{}
 	GetSysInfo() host.InfoStat
 	GetDeviceTree() string
 	GetDeviceInfo() model.DeviceInfo
@@ -245,9 +246,52 @@ func (c *systemService) GetDiskInfo() *disk.UsageStat {
 		path = "C:"
 	}
 	diskInfo, _ := disk.Usage(path)
-	diskInfo.UsedPercent, _ = strconv.ParseFloat(fmt.Sprintf("%.1f", diskInfo.UsedPercent), 64)
-	diskInfo.InodesUsedPercent, _ = strconv.ParseFloat(fmt.Sprintf("%.1f", diskInfo.InodesUsedPercent), 64)
+	if diskInfo != nil {
+		diskInfo.UsedPercent, _ = strconv.ParseFloat(fmt.Sprintf("%.1f", diskInfo.UsedPercent), 64)
+		diskInfo.InodesUsedPercent, _ = strconv.ParseFloat(fmt.Sprintf("%.1f", diskInfo.InodesUsedPercent), 64)
+	} else {
+		diskInfo = &disk.UsageStat{Path: path}
+	}
 	return diskInfo
+}
+
+func (c *systemService) GetAllDisksInfo() []map[string]interface{} {
+	var list []map[string]interface{}
+	if runtime.GOOS == "windows" {
+		for _, letter := range "CDEFGHIJKLMNOPQRSTUVWXYZAB" {
+			driveRoot := string(letter) + ":\\"
+			if _, err := os.Stat(driveRoot); err == nil {
+				usage, err := disk.Usage(string(letter) + ":")
+				if err == nil && usage != nil && usage.Total > 0 {
+					usedPct, _ := strconv.ParseFloat(fmt.Sprintf("%.1f", usage.UsedPercent), 64)
+					list = append(list, map[string]interface{}{
+						"name":        string(letter) + ": Drive",
+						"path":        string(letter) + ":\\",
+						"drive":       string(letter),
+						"total":       usage.Total,
+						"used":        usage.Used,
+						"free":        usage.Free,
+						"usedPercent": usedPct,
+					})
+				}
+			}
+		}
+	} else {
+		usage, _ := disk.Usage("/")
+		if usage != nil {
+			usedPct, _ := strconv.ParseFloat(fmt.Sprintf("%.1f", usage.UsedPercent), 64)
+			list = append(list, map[string]interface{}{
+				"name":        "Root Storage",
+				"path":        "/",
+				"drive":       "/",
+				"total":       usage.Total,
+				"used":        usage.Used,
+				"free":        usage.Free,
+				"usedPercent": usedPct,
+			})
+		}
+	}
+	return list
 }
 
 func (c *systemService) GetDirPathOne(path string) (m model.Path) {

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CasaOS | سحابة الملفات والصور المنزلية</title>
+    <title>CasaOS | سحابة الملفات ومراقبة الخادم</title>
     <!-- Modern Typography: Plus Jakarta Sans & IBM Plex Sans Arabic -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,12 +17,21 @@
             --bg-sidebar: #f8fafc;
             --bg-surface-hover: #f1f5f9;
             --bg-active: #e2e8f0;
-            --bg-glass: rgba(255, 255, 255, 0.85);
+            --bg-glass: rgba(255, 255, 255, 0.88);
             
             --primary: #2563eb;
             --primary-hover: #1d4ed8;
             --primary-light: #eff6ff;
             --primary-text: #1d4ed8;
+
+            --cpu-color: #3b82f6;
+            --cpu-bg: #eff6ff;
+            --ram-color: #10b981;
+            --ram-bg: #ecfdf5;
+            --disk-color: #8b5cf6;
+            --disk-bg: #f5f3ff;
+            --net-color: #f59e0b;
+            --net-bg: #fffbeb;
 
             --text-main: #0f172a;
             --text-secondary: #475569;
@@ -33,11 +42,8 @@
             --border-focus: #3b82f6;
 
             --success: #10b981;
-            --success-light: #ecfdf5;
             --danger: #ef4444;
-            --danger-light: #fef2f2;
             --warning: #f59e0b;
-            --warning-light: #fffbeb;
 
             /* Elevation Shadows */
             --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
@@ -51,7 +57,7 @@
             --radius-md: 12px;
             --radius-lg: 16px;
             --radius-xl: 24px;
-            --sidebar-width: 260px;
+            --sidebar-width: 270px;
             --header-height: 68px;
 
             /* Fonts */
@@ -154,7 +160,7 @@
         /* Search Bar */
         .search-wrapper {
             flex: 1;
-            max-width: 480px;
+            max-width: 460px;
             position: relative;
             margin: 0 1.5rem;
         }
@@ -284,7 +290,7 @@
             display: flex;
             flex-direction: column;
             gap: 0.25rem;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1.25rem;
         }
 
         .nav-item {
@@ -317,6 +323,51 @@
         }
         .nav-item.active .icon {
             color: var(--primary);
+        }
+
+        /* Drive item with mini progress in sidebar */
+        .drive-nav-card {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 0.65rem 0.85rem;
+            margin-bottom: 0.4rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .drive-nav-card:hover {
+            border-color: #cbd5e1;
+            box-shadow: var(--shadow-xs);
+            transform: translateX(-2px);
+        }
+        .drive-nav-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 0.35rem;
+        }
+        .drive-nav-bar {
+            height: 4px;
+            background: #f1f5f9;
+            border-radius: 999px;
+            overflow: hidden;
+            margin-bottom: 0.25rem;
+        }
+        .drive-nav-fill {
+            height: 100%;
+            background: var(--disk-color);
+            border-radius: 999px;
+            transition: width 0.3s ease;
+        }
+        .drive-nav-meta {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-family: var(--font-en);
+            display: flex;
+            justify-content: space-between;
         }
 
         /* Storage Card in Sidebar */
@@ -378,11 +429,102 @@
         /* Main Workspace */
         .main-content {
             flex: 1;
-            padding: 1.75rem 2rem;
+            padding: 1.5rem 2rem;
             display: flex;
             flex-direction: column;
             gap: 1.25rem;
             max-width: 1600px;
+        }
+
+        /* ==========================================================================
+           Live System Resource Monitoring Widgets Bar (CPU / RAM / Disk / Net)
+           ========================================================================== */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+
+        .metric-card {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1rem 1.15rem;
+            box-shadow: var(--shadow-xs);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            border-color: #cbd5e1;
+        }
+
+        .metric-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.6rem;
+        }
+
+        .metric-badge-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .metric-label {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .metric-value {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--text-main);
+            font-family: var(--font-en);
+            display: flex;
+            align-items: baseline;
+            gap: 0.25rem;
+        }
+
+        .metric-unit {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .metric-progress-track {
+            height: 6px;
+            background: #f1f5f9;
+            border-radius: 999px;
+            overflow: hidden;
+            margin: 0.6rem 0 0.4rem 0;
+        }
+
+        .metric-progress-fill {
+            height: 100%;
+            border-radius: 999px;
+            width: 0%;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .metric-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: var(--font-en);
         }
 
         /* Top Bar: Breadcrumbs & View Toggle */
@@ -598,34 +740,6 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-        }
-
-        .item-actions-trigger {
-            position: absolute;
-            top: 0.75rem;
-            left: 0.75rem;
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            width: 28px;
-            height: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--text-secondary);
-            opacity: 0;
-            transition: all 0.15s ease;
-            box-shadow: var(--shadow-xs);
-        }
-
-        .item-card:hover .item-actions-trigger {
-            opacity: 1;
-        }
-
-        .item-actions-trigger:hover {
-            background: #ffffff;
-            color: var(--primary);
-            border-color: var(--primary);
         }
 
         /* Items List View */
@@ -1023,6 +1137,12 @@
         }
 
         /* Responsive Breakpoints */
+        @media (max-width: 1100px) {
+            .metrics-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
         @media (max-width: 900px) {
             .sidebar {
                 display: none;
@@ -1032,6 +1152,10 @@
             }
             .header-brand {
                 width: auto;
+            }
+            .metrics-grid {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
             }
             .mobile-bottom-nav {
                 display: flex;
@@ -1115,18 +1239,15 @@
                         <span>الصور والمعرض</span>
                     </li>
                     <li class="nav-item" id="navDocuments" onclick="navigateToFolder('C:/CasaOS/DATA/Documents')">
-                        <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                         <span>المستندات</span>
                     </li>
                 </ul>
 
                 <div class="nav-section-title">الأقراص ومحركات التخزين</div>
-                <ul class="nav-list" id="drivesNavList">
-                    <li class="nav-item" onclick="navigateToFolder('/')">
-                        <svg class="icon" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
-                        <span>تصفح كافة الأقراص</span>
-                    </li>
-                </ul>
+                <div id="drivesSidebarContainer">
+                    <!-- Dynamic drive cards with usage bars injected here -->
+                </div>
             </div>
 
             <!-- Storage Health Widget -->
@@ -1134,7 +1255,7 @@
                 <div class="storage-header">
                     <div class="storage-title">
                         <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                        <span>سعة التخزين</span>
+                        <span>سعة التخزين (C:)</span>
                     </div>
                     <span id="storagePercentText" style="font-size: 0.78rem; font-weight: 700; color: var(--primary);">--%</span>
                 </div>
@@ -1153,6 +1274,92 @@
 
         <!-- Main Content Area -->
         <main class="main-content">
+
+            <!-- =================================================================
+                 Live System Resource Monitoring Widgets (CPU / RAM / Disk / Net)
+                 ================================================================= -->
+            <section class="metrics-grid">
+                <!-- 1. CPU Metric Card -->
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-label">المعالج (CPU)</span>
+                        <div class="metric-badge-icon" style="background: var(--cpu-bg); color: var(--cpu-color);">
+                            <svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>
+                        </div>
+                    </div>
+                    <div class="metric-value">
+                        <span id="cpuValText">0</span><span class="metric-unit">%</span>
+                    </div>
+                    <div class="metric-progress-track">
+                        <div class="metric-progress-fill" id="cpuBar" style="background: var(--cpu-color);"></div>
+                    </div>
+                    <div class="metric-footer">
+                        <span id="cpuModelText">Intel Processor</span>
+                        <span id="cpuCoresText">6 أنوية</span>
+                    </div>
+                </div>
+
+                <!-- 2. RAM Memory Card -->
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-label">الذاكرة العشوائية (RAM)</span>
+                        <div class="metric-badge-icon" style="background: var(--ram-bg); color: var(--ram-color);">
+                            <svg class="icon" viewBox="0 0 24 24"><path d="M6 19v-3"/><path d="M10 19v-3"/><path d="M14 19v-3"/><path d="M18 19v-3"/><rect x="2" y="5" width="20" height="11" rx="2"/></svg>
+                        </div>
+                    </div>
+                    <div class="metric-value">
+                        <span id="ramValText">0</span><span class="metric-unit">%</span>
+                    </div>
+                    <div class="metric-progress-track">
+                        <div class="metric-progress-fill" id="ramBar" style="background: var(--ram-color);"></div>
+                    </div>
+                    <div class="metric-footer">
+                        <span id="ramUsedText">0 GB مستخدم</span>
+                        <span id="ramTotalText">من 16 GB</span>
+                    </div>
+                </div>
+
+                <!-- 3. Overall Disk Storage Card -->
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-label">التخزين الإجمالي (Storage)</span>
+                        <div class="metric-badge-icon" style="background: var(--disk-bg); color: var(--disk-color);">
+                            <svg class="icon" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                        </div>
+                    </div>
+                    <div class="metric-value">
+                        <span id="diskValText">0</span><span class="metric-unit">%</span>
+                    </div>
+                    <div class="metric-progress-track">
+                        <div class="metric-progress-fill" id="diskBar" style="background: var(--disk-color);"></div>
+                    </div>
+                    <div class="metric-footer">
+                        <span id="diskUsedText">0 GB</span>
+                        <span id="diskFreeText">0 GB متبقي</span>
+                    </div>
+                </div>
+
+                <!-- 4. Network Status Card -->
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-label">حركة الشبكة (Network)</span>
+                        <div class="metric-badge-icon" style="background: var(--net-bg); color: var(--net-color);">
+                            <svg class="icon" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+                        </div>
+                    </div>
+                    <div class="metric-value">
+                        <span id="netSpeedText" style="font-size: 1.15rem;">Wi-Fi</span>
+                        <span class="metric-unit" id="netStateBadge" style="color: var(--success); font-weight: 600;">متصل</span>
+                    </div>
+                    <div class="metric-progress-track">
+                        <div class="metric-progress-fill" id="netBar" style="background: var(--net-color); width: 100%;"></div>
+                    </div>
+                    <div class="metric-footer">
+                        <span id="netIpText">192.168.1.35</span>
+                        <span id="netTotalTraffic">نشط</span>
+                    </div>
+                </div>
+            </section>
 
             <!-- Breadcrumbs and View Switcher -->
             <div class="content-header">
@@ -1353,14 +1560,15 @@
         document.addEventListener('DOMContentLoaded', () => {
             setupDragAndDrop();
             loadCurrentFolder();
-            loadStorageStats();
+            loadLiveMetrics();
             setupPhoneQRCode();
+            // Start live periodic stats refresh every 2.5 seconds
+            setInterval(loadLiveMetrics, 2500);
         });
 
         // Navigation
         function navigateToFolder(path) {
             currentPath = path;
-            // Update active sidebar item
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             if (path.includes('Photos')) {
                 document.getElementById('navPhotos')?.classList.add('active');
@@ -1380,8 +1588,8 @@
 
             container.innerHTML = `
                 <div class="state-container">
-                    <div class="storage-fill" style="width: 40px; height: 40px; border-radius: 50%; border: 3px solid #e2e8f0; border-top-color: var(--primary); animation: spin 0.8s linear infinite;"></div>
-                    <p style="font-size: 0.9rem;">جارٍ تحميل الملفات...</p>
+                    <div class="storage-fill" style="width: 36px; height: 36px; border-radius: 50%; border: 3px solid #e2e8f0; border-top-color: var(--primary); animation: spin 0.8s linear infinite;"></div>
+                    <p style="font-size: 0.9rem;">جارٍ تحميل المحتويات...</p>
                 </div>
             `;
 
@@ -1581,6 +1789,95 @@
             container.innerHTML = html;
         }
 
+        // =========================================================================
+        // Live System Resource Monitor (CPU, RAM, Disks, Network)
+        // =========================================================================
+        async function loadLiveMetrics() {
+            try {
+                const res = await fetch('/v1/sys/utilization');
+                const json = await res.json();
+                if (json.success === 200 && json.data) {
+                    const data = json.data;
+
+                    // 1. CPU Update
+                    if (data.cpu) {
+                        const cpuPct = Math.round(data.cpu.percent || 0);
+                        document.getElementById('cpuValText').innerText = cpuPct;
+                        document.getElementById('cpuBar').style.width = `${Math.min(cpuPct, 100)}%`;
+                        if (data.cpu.model) {
+                            document.getElementById('cpuModelText').innerText = data.cpu.model.toUpperCase();
+                        }
+                        if (data.cpu.num) {
+                            document.getElementById('cpuCoresText').innerText = `${data.cpu.num} أنوية`;
+                        }
+                    }
+
+                    // 2. RAM Update
+                    if (data.mem) {
+                        const ramPct = Math.round(data.mem.usedPercent || 0);
+                        document.getElementById('ramValText').innerText = ramPct;
+                        document.getElementById('ramBar').style.width = `${Math.min(ramPct, 100)}%`;
+                        document.getElementById('ramUsedText').innerText = `${formatBytes(data.mem.used)} مستخدم`;
+                        document.getElementById('ramTotalText').innerText = `من ${formatBytes(data.mem.total)}`;
+                    }
+
+                    // 3. Disks Update
+                    if (data.disks && data.disks.length > 0) {
+                        let totalAll = 0;
+                        let usedAll = 0;
+                        let freeAll = 0;
+                        let drivesHtml = '';
+
+                        data.disks.forEach(d => {
+                            totalAll += (d.total || 0);
+                            usedAll += (d.used || 0);
+                            freeAll += (d.free || 0);
+
+                            drivesHtml += `
+                                <div class="drive-nav-card" onclick="navigateToFolder('${d.path.replace(/\\/g, '\\\\')}')">
+                                    <div class="drive-nav-header">
+                                        <div style="display: flex; align-items: center; gap: 0.35rem;">
+                                            <svg class="icon icon-sm" style="color: var(--disk-color);" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/></svg>
+                                            <span>القرص (${d.drive}:)</span>
+                                        </div>
+                                        <span style="font-family: var(--font-en); font-size: 0.78rem; color: var(--text-secondary);">${d.usedPercent}%</span>
+                                    </div>
+                                    <div class="drive-nav-bar">
+                                        <div class="drive-nav-fill" style="width: ${d.usedPercent}%;"></div>
+                                    </div>
+                                    <div class="drive-nav-meta">
+                                        <span>متبقي: ${formatBytes(d.free)}</span>
+                                        <span>إجمالي: ${formatBytes(d.total)}</span>
+                                    </div>
+                                </div>
+                            `;
+                        });
+
+                        document.getElementById('drivesSidebarContainer').innerHTML = drivesHtml;
+
+                        const overallPct = totalAll > 0 ? Math.round((usedAll / totalAll) * 100) : 0;
+                        document.getElementById('diskValText').innerText = overallPct;
+                        document.getElementById('diskBar').style.width = `${Math.min(overallPct, 100)}%`;
+                        document.getElementById('diskUsedText').innerText = `${formatBytes(usedAll)} مستخدم`;
+                        document.getElementById('diskFreeText').innerText = `${formatBytes(freeAll)} متبقي`;
+                    }
+
+                    // 4. Network Update
+                    if (data.net && data.net.length > 0) {
+                        const activeNet = data.net.find(n => n.state === 'up' && (n.name.includes('Wi-Fi') || n.name.includes('Ethernet'))) || data.net[0];
+                        if (activeNet) {
+                            document.getElementById('netSpeedText').innerText = activeNet.name.replace(/\(.*\)/, '').trim();
+                            document.getElementById('netStateBadge').innerText = activeNet.state === 'up' ? 'نشط ومتصل' : 'معطل';
+                            document.getElementById('netStateBadge').style.color = activeNet.state === 'up' ? 'var(--success)' : 'var(--danger)';
+                            document.getElementById('netTotalTraffic').innerText = `إرسال: ${formatBytes(activeNet.bytesSent)} / استلام: ${formatBytes(activeNet.bytesRecv)}`;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Live metrics update error", err);
+            }
+        }
+
         // File Types Detectors
         function isPhoto(name) {
             return /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i.test(name);
@@ -1688,7 +1985,7 @@
             setTimeout(() => {
                 toast.style.display = 'none';
                 loadCurrentFolder();
-                loadStorageStats();
+                loadLiveMetrics();
             }, 1200);
         }
 
@@ -1744,31 +2041,6 @@
             const body = document.getElementById('lightboxBody');
             body.innerHTML = '';
             modal.classList.remove('active');
-        }
-
-        // Storage & System Stats
-        async function loadStorageStats() {
-            try {
-                const res = await fetch('/v1/sys/hardware');
-                const json = await res.json();
-                if (json.success === 200 && json.data) {
-                    if (json.data.disk) {
-                        const disk = json.data.disk;
-                        const usedText = formatBytes(disk.used);
-                        const totalText = formatBytes(disk.total);
-                        const percent = Math.min(Math.round(disk.usedPercent || 0), 100);
-                        document.getElementById('storageUsedText').innerText = usedText;
-                        document.getElementById('storageTotalText').innerText = totalText;
-                        document.getElementById('storagePercentText').innerText = `${percent}%`;
-                        document.getElementById('storageBarFill').style.width = `${percent}%`;
-                    }
-                    if (json.data.drive_model) {
-                        document.getElementById('systemArchText').innerText = json.data.drive_model.split('(')[0] || 'Windows System';
-                    }
-                }
-            } catch (err) {
-                console.error("Storage stats error", err);
-            }
         }
 
         // QR Code & Phone Linking
@@ -1828,7 +2100,7 @@
 
         function refreshCurrentFolder() {
             loadCurrentFolder();
-            loadStorageStats();
+            loadLiveMetrics();
         }
     </script>
 </body>

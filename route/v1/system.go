@@ -219,6 +219,8 @@ func GetSystemUtilization(ctx echo.Context) error {
 
 	data["cpu"] = cpuData
 	data["mem"] = service.MyService.System().GetMemInfo()
+	data["disk"] = service.MyService.System().GetDiskInfo()
+	data["disks"] = service.MyService.System().GetAllDisksInfo()
 
 	// 拼装网络信息
 	netList := service.MyService.System().GetNetInfo()
