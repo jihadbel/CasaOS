@@ -17,7 +17,7 @@
             --bg-sidebar: #f8fafc;
             --bg-surface-hover: #f1f5f9;
             --bg-active: #e2e8f0;
-            --bg-glass: rgba(255, 255, 255, 0.92);
+            --bg-glass: rgba(255, 255, 255, 0.94);
             
             --primary: #2563eb;
             --primary-hover: #1d4ed8;
@@ -371,7 +371,7 @@
             justify-content: space-between;
         }
 
-        /* Storage Card in Sidebar */
+        /* Total Storage Card in Sidebar */
         .storage-card {
             background: #ffffff;
             border: 1px solid var(--border);
@@ -798,7 +798,121 @@
             margin-top: 0.25rem;
         }
 
-        /* Quick Server Shortcuts Row */
+        /* Smart Storage & Path Routing Settings Card */
+        .settings-card {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            padding: 1.5rem 1.75rem;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .settings-row {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 1.5rem;
+            align-items: center;
+            padding-bottom: 1.25rem;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .settings-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .settings-label-col h4 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .settings-label-col p {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .settings-input-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .path-input {
+            flex: 1;
+            height: 40px;
+            background: var(--bg-body);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 0 0.85rem;
+            font-family: var(--font-en);
+            font-size: 0.88rem;
+            color: var(--text-main);
+            direction: ltr;
+            text-align: left;
+            transition: all 0.2s ease;
+        }
+
+        .path-input:focus {
+            outline: none;
+            border-color: var(--border-focus);
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+        }
+
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 26px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background-color: #cbd5e1;
+            transition: .3s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+
+        /* Shortcuts Grid */
         .shortcuts-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -1217,7 +1331,7 @@
             display: none;
             flex-direction: column;
             gap: 0.6rem;
-            width: 320px;
+            width: 350px;
             animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
@@ -1278,13 +1392,15 @@
             border: 1px solid var(--border);
             box-shadow: var(--shadow-xl);
             width: 100%;
-            max-width: 440px;
+            max-width: 540px;
             padding: 1.75rem;
             display: flex;
             flex-direction: column;
             gap: 1.25rem;
             position: relative;
             animation: scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         @keyframes scaleIn {
@@ -1499,6 +1615,10 @@
             .metrics-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
+            .settings-row {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+            }
         }
 
         @media (max-width: 900px) {
@@ -1546,7 +1666,7 @@
     <div class="drop-overlay" id="dropOverlay">
         <svg class="icon icon-xl" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         <h3 style="font-size: 1.3rem; font-weight: 700;">أفلت الملفات هنا للرفع الفوري</h3>
-        <p style="font-size: 0.9rem; color: var(--text-secondary);">سيتم حفظ الملفات تلقائياً في المجلد الحالي</p>
+        <p style="font-size: 0.9rem; color: var(--text-secondary);" id="dropDescText">سيتم تصنيف الملفات تلقائياً حسب نوعها</p>
     </div>
 
     <!-- Top Application Header -->
@@ -1572,7 +1692,11 @@
             </button>
             <button class="header-tab-btn" id="topTabPhotos" onclick="switchMainTab('photos')">
                 <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                <span>معرض الصور</span>
+                <span>الصور والمعرض</span>
+            </button>
+            <button class="header-tab-btn" id="topTabSettings" onclick="openSettingsModal()">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span>إعدادات المسارات</span>
             </button>
         </div>
 
@@ -1605,21 +1729,37 @@
                         <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                         <span>لوحة التحكم ومراقبة النظام</span>
                     </li>
+                    <li class="nav-item" id="sideNavSettings" onclick="openSettingsModal()">
+                        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                        <span>إعدادات المسارات والتخزين</span>
+                    </li>
                 </ul>
 
-                <div class="nav-section-title">المكتبة السحابية</div>
+                <div class="nav-section-title">المكتبات المصنفة ذكياً</div>
                 <ul class="nav-list">
-                    <li class="nav-item" id="navAllFiles" onclick="navigateToFolder('/DATA')">
+                    <li class="nav-item" id="navAllFiles" onclick="navigateToFolder(appSettings.defaultPath || '/DATA')">
                         <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
                         <span>جميع الملفات (DATA)</span>
                     </li>
-                    <li class="nav-item" id="navPhotos" onclick="switchMainTab('photos')">
+                    <li class="nav-item" id="navPhotos" onclick="navigateToCategory('photos')">
                         <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                        <span>الصور والمعرض</span>
+                        <span>الصور (Photos)</span>
                     </li>
-                    <li class="nav-item" id="navDocuments" onclick="navigateToFolder('C:/CasaOS/DATA/Documents')">
+                    <li class="nav-item" id="navVideos" onclick="navigateToCategory('videos')">
+                        <svg class="icon" viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                        <span>الفيديوهات (Videos)</span>
+                    </li>
+                    <li class="nav-item" id="navDocuments" onclick="navigateToCategory('documents')">
                         <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                        <span>المستندات</span>
+                        <span>المستندات (Documents)</span>
+                    </li>
+                    <li class="nav-item" id="navMusic" onclick="navigateToCategory('music')">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                        <span>الصوتيات (Music)</span>
+                    </li>
+                    <li class="nav-item" id="navMobileUploads" onclick="navigateToCategory('mobile')">
+                        <svg class="icon" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                        <span>رفع الهواتف (Mobile)</span>
                     </li>
                 </ul>
 
@@ -1655,7 +1795,7 @@
         <main class="main-content">
 
             <!-- =================================================================
-                 1. DEDICATED DASHBOARD VIEW (واجهة الداش بورد ومراقبة الموارد)
+                 1. DEDICATED DASHBOARD VIEW (لوحة مراقبة الموارد والداش بورد)
                  ================================================================= -->
             <section id="dashboardView" class="view-section active">
 
@@ -1663,13 +1803,13 @@
                 <div class="dashboard-hero">
                     <div class="hero-info">
                         <div class="hero-title-row">
-                            <h2 class="hero-title">لوحة مراقبة موارد النظام</h2>
+                            <h2 class="hero-title">لوحة مراقبة موارد النظام والتخزين</h2>
                             <div class="status-badge">
                                 <div class="status-badge-dot"></div>
                                 <span>الخادم متصل ونشط</span>
                             </div>
                         </div>
-                        <p class="hero-subtitle">مراقبة حية لاستهلاك المعالج، الرام، سعة التخزين الإجمالية، وتفاصيل كل بارتشن على حدى</p>
+                        <p class="hero-subtitle">مراقبة حية لاستهلاك المعالج، الرام، سعة التخزين الإجمالية، وتفاصيل كل بارتشن مع التصنيف الذكي للملفات</p>
                     </div>
 
                     <div class="hero-meta-pills">
@@ -1681,8 +1821,8 @@
                             <svg class="icon icon-sm" style="color: var(--ram-color);" viewBox="0 0 24 24"><path d="M20 7h-7L10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
                             <span id="heroPartitionsCount">3 بارتشنات مفحوصة</span>
                         </div>
-                        <button class="btn btn-secondary btn-icon-only" onclick="loadLiveMetrics()" title="تحديث المؤشرات الآن">
-                            <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                        <button class="btn btn-secondary btn-icon-only" onclick="openSettingsModal()" title="إعدادات المسارات">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                         </button>
                     </div>
                 </div>
@@ -1771,9 +1911,7 @@
                     </div>
                 </div>
 
-                <!-- =============================================================
-                     DETAILED DISKS & PARTITIONS SECTION (كل قرص وبارتشن على حدى)
-                     ============================================================= -->
+                <!-- Detailed Disks & Partitions Section -->
                 <div class="section-header">
                     <h3 class="section-title">
                         <svg class="icon" style="color: var(--disk-color);" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
@@ -1789,32 +1927,42 @@
                     <!-- Dynamic detailed disk cards injected here -->
                 </div>
 
-                <!-- Fast Server Shortcuts -->
+                <!-- Fast Shortcuts -->
                 <div class="section-header" style="margin-top: 0.75rem;">
                     <h3 class="section-title">
                         <svg class="icon" style="color: var(--primary);" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                        <span>الوصول السريع للمجلدات والخادم</span>
+                        <span>المكتبات السحابية والوصول السريع</span>
                     </h3>
                 </div>
 
                 <div class="shortcuts-grid">
-                    <div class="shortcut-card" onclick="navigateToFolder('/DATA')">
+                    <div class="shortcut-card" onclick="navigateToCategory('photos')">
                         <div class="shortcut-icon" style="background: var(--primary-light); color: var(--primary);">
-                            <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-                        </div>
-                        <div class="shortcut-text">
-                            <h5>مجلد التخزين الرئيسي</h5>
-                            <p>تصفح وإدارة مجلد DATA</p>
-                        </div>
-                    </div>
-
-                    <div class="shortcut-card" onclick="switchMainTab('photos')">
-                        <div class="shortcut-icon" style="background: var(--ram-bg); color: var(--ram-color);">
                             <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                         </div>
                         <div class="shortcut-text">
-                            <h5>معرض الصور والفيديوهات</h5>
-                            <p>عرض ألبومات الصور والوسائط</p>
+                            <h5>مجلد الصور (Photos)</h5>
+                            <p id="shortcutPhotoPath">C:/CasaOS/DATA/Photos</p>
+                        </div>
+                    </div>
+
+                    <div class="shortcut-card" onclick="navigateToCategory('videos')">
+                        <div class="shortcut-icon" style="background: var(--disk-bg); color: var(--disk-color);">
+                            <svg class="icon" viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                        </div>
+                        <div class="shortcut-text">
+                            <h5>مجلد الفيديوهات (Videos)</h5>
+                            <p id="shortcutVideoPath">C:/CasaOS/DATA/Videos</p>
+                        </div>
+                    </div>
+
+                    <div class="shortcut-card" onclick="navigateToCategory('documents')">
+                        <div class="shortcut-icon" style="background: var(--ram-bg); color: var(--ram-color);">
+                            <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        </div>
+                        <div class="shortcut-text">
+                            <h5>مجلد المستندات (Documents)</h5>
+                            <p id="shortcutDocPath">C:/CasaOS/DATA/Documents</p>
                         </div>
                     </div>
 
@@ -1827,25 +1975,26 @@
                             <p>مسح رمز QR للرفع الفوري</p>
                         </div>
                     </div>
-
-                    <div class="shortcut-card" onclick="triggerFileUpload()">
-                        <div class="shortcut-icon" style="background: var(--disk-bg); color: var(--disk-color);">
-                            <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        </div>
-                        <div class="shortcut-text">
-                            <h5>رفع ملفات جديدة</h5>
-                            <p>رفع ملفات ومستندات للحاسوب</p>
-                        </div>
-                    </div>
                 </div>
 
             </section>
 
 
             <!-- =================================================================
-                 2. DEDICATED FILES EXPLORER VIEW (واجهة مدير الملفات المستقلة)
+                 2. DEDICATED FILES EXPLORER VIEW (مدير الملفات المستقل)
                  ================================================================= -->
             <section id="filesView" class="view-section">
+
+                <!-- Current Category & Destination Notice -->
+                <div id="smartRoutingNotice" style="display: flex; align-items: center; justify-content: space-between; background: #ffffff; border: 1px solid var(--border); padding: 0.75rem 1.25rem; border-radius: var(--radius-md); font-size: 0.85rem; color: var(--text-secondary);">
+                    <div style="display: flex; align-items: center; gap: 0.6rem;">
+                        <span style="display: inline-flex; width: 10px; height: 10px; border-radius: 50%; background: var(--success);"></span>
+                        <span>ميزة <b>التصنيف الذكي للملفات</b>: <span id="autoSortStatusLabel" style="color: var(--primary); font-weight: 600;">مفعلة تلقائياً</span> (يتم توجيه الصور، الفيديو، والمستندات لمجلداتها المخصصة)</span>
+                    </div>
+                    <button class="btn btn-secondary" style="height: 30px; font-size: 0.78rem; padding: 0 0.75rem;" onclick="openSettingsModal()">
+                        تغيير المسارات ⚙️
+                    </button>
+                </div>
 
                 <!-- Breadcrumbs and View Switcher -->
                 <div class="content-header">
@@ -1895,6 +2044,10 @@
                         <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                         <span>المستندات</span>
                     </button>
+                    <button class="chip" id="filterMusic" onclick="setCategoryFilter('music')">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                        <span>الصوتيات</span>
+                    </button>
                 </div>
 
                 <!-- Files & Folders Container -->
@@ -1920,47 +2073,127 @@
         </main>
     </div>
 
-    <!-- Hidden Input for File Upload -->
-    <input type="file" id="fileInput" multiple style="display: none;" onchange="handleFileSelection(event)">
-    <input type="file" id="photoInput" accept="image/*,video/*" multiple style="display: none;" onchange="handleFileSelection(event)">
+    <!-- =========================================================================
+         MODALS (Settings, Phone Connect, New Folder, Lightbox)
+         ========================================================================= -->
 
-    <!-- Floating Action Button for Mobile -->
-    <button class="fab" onclick="triggerFileUpload()" title="رفع ملفات">
-        <svg class="icon icon-lg" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-    </button>
+    <!-- 1. Storage & Device Paths Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span>إعدادات مسارات التخزين والأجهزة</span>
+                </div>
+                <button class="modal-close" onclick="closeSettingsModal()">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
 
-    <!-- Mobile Bottom Navigation -->
-    <nav class="mobile-bottom-nav">
-        <button class="mobile-nav-btn active" id="mobTabDashboard" onclick="switchMainTab('dashboard')">
-            <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            <span>الداش بورد</span>
-        </button>
-        <button class="mobile-nav-btn" id="mobTabFiles" onclick="switchMainTab('files')">
-            <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-            <span>الملفات</span>
-        </button>
-        <button class="mobile-nav-btn" id="mobTabPhotos" onclick="switchMainTab('photos')">
-            <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            <span>الصور</span>
-        </button>
-        <button class="mobile-nav-btn" onclick="openPhoneModal()">
-            <svg class="icon" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-            <span>ربط الهاتف</span>
-        </button>
-    </nav>
+            <!-- Settings Content -->
+            <div class="settings-card">
 
-    <!-- Upload Progress Floating Toast -->
-    <div class="upload-toast" id="uploadToast">
-        <div class="upload-toast-header">
-            <span id="uploadStatusText">جارٍ الرفع...</span>
-            <span id="uploadPercentText" style="color: var(--primary);">0%</span>
-        </div>
-        <div class="upload-toast-bar">
-            <div class="upload-toast-fill" id="uploadProgressBar"></div>
+                <!-- Toggle Smart Categorization -->
+                <div class="settings-row">
+                    <div class="settings-label-col">
+                        <h4>
+                            <svg class="icon icon-sm" style="color: var(--primary);" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                            <span>التصنيف الذكي التلقائي</span>
+                        </h4>
+                        <p>توجيه الملفات المرفوعة لمجلداتها المناسبة تلقائياً حسب نوعها (صور، فيديو، مستندات...)</p>
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: flex-end;">
+                        <label class="switch">
+                            <input type="checkbox" id="smartAutoSortToggle" onchange="toggleSmartSorting(this.checked)" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Photos Path -->
+                <div class="settings-row">
+                    <div class="settings-label-col">
+                        <h4>📸 مسار حفظ الصور</h4>
+                        <p>المجلد الذي تحفظ فيه الصور عند الرفع</p>
+                    </div>
+                    <div class="settings-input-group">
+                        <input type="text" id="settingPhotosPath" class="path-input" value="C:/CasaOS/DATA/Photos">
+                    </div>
+                </div>
+
+                <!-- Videos Path -->
+                <div class="settings-row">
+                    <div class="settings-label-col">
+                        <h4>🎬 مسار حفظ الفيديوهات</h4>
+                        <p>المجلد المخصص لمقاطع الفيديو والأفلام</p>
+                    </div>
+                    <div class="settings-input-group">
+                        <input type="text" id="settingVideosPath" class="path-input" value="C:/CasaOS/DATA/Videos">
+                    </div>
+                </div>
+
+                <!-- Documents Path -->
+                <div class="settings-row">
+                    <div class="settings-label-col">
+                        <h4>📄 مسار المستندات والملفات</h4>
+                        <p>مجلد الكتب والـ PDF وملفات Word/Excel</p>
+                    </div>
+                    <div class="settings-input-group">
+                        <input type="text" id="settingDocumentsPath" class="path-input" value="C:/CasaOS/DATA/Documents">
+                    </div>
+                </div>
+
+                <!-- Music Path -->
+                <div class="settings-row">
+                    <div class="settings-label-col">
+                        <h4>🎵 مسار ملفات الصوت</h4>
+                        <p>المجلد المخصص للمقاطع الصوتية والموسيقى</p>
+                    </div>
+                    <div class="settings-input-group">
+                        <input type="text" id="settingMusicPath" class="path-input" value="C:/CasaOS/DATA/Music">
+                    </div>
+                </div>
+
+                <!-- Mobile Uploads Path -->
+                <div class="settings-row">
+                    <div class="settings-label-col">
+                        <h4>📱 مسار رفع الهواتف والأجهزة</h4>
+                        <p>المجلد الافتراضي لملفات الهواتف المتصلة بالـ QR</p>
+                    </div>
+                    <div class="settings-input-group">
+                        <input type="text" id="settingMobilePath" class="path-input" value="C:/CasaOS/DATA/Mobile_Uploads">
+                    </div>
+                </div>
+
+                <!-- Default Root Storage Path -->
+                <div class="settings-row">
+                    <div class="settings-label-col">
+                        <h4>💾 المسار الافتراضي العام (DATA)</h4>
+                        <p>مسار الجذر الرئيسي للتخزين السحابي</p>
+                    </div>
+                    <div class="settings-input-group">
+                        <input type="text" id="settingDefaultPath" class="path-input" value="C:/CasaOS/DATA">
+                    </div>
+                </div>
+
+                <!-- Quick Partition Target Switcher -->
+                <div style="background: var(--bg-body); padding: 0.85rem; border-radius: var(--radius-md); border: 1px solid var(--border-light);">
+                    <span style="font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem; display: block;">تبديل مسار التخزين سريعاً لأحد البارتشنات:</span>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;" id="quickPartitionButtons">
+                        <!-- Dynamic drive buttons injected -->
+                    </div>
+                </div>
+
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem;">
+                <button class="btn btn-secondary" onclick="resetDefaultSettings()">استعادة الافتراضي</button>
+                <button class="btn btn-primary" onclick="saveSettings()">حفظ وتطبيق الإعدادات</button>
+            </div>
         </div>
     </div>
 
-    <!-- Phone Connect QR Code Modal -->
+    <!-- 2. Phone Connect QR Code Modal -->
     <div class="modal" id="phoneModal">
         <div class="modal-card">
             <div class="modal-header">
@@ -1994,7 +2227,7 @@
         </div>
     </div>
 
-    <!-- New Folder Modal -->
+    <!-- 3. New Folder Modal -->
     <div class="modal" id="newFolderModal">
         <div class="modal-card">
             <div class="modal-header">
@@ -2014,7 +2247,7 @@
         </div>
     </div>
 
-    <!-- Lightbox Fullscreen Modal -->
+    <!-- 4. Lightbox Fullscreen Modal -->
     <div class="lightbox-modal" id="lightboxModal">
         <div class="lightbox-topbar">
             <div class="lightbox-title" id="lightboxTitle">معاينة الملف</div>
@@ -2032,11 +2265,65 @@
         </div>
     </div>
 
+    <!-- Hidden Input for File Upload -->
+    <input type="file" id="fileInput" multiple style="display: none;" onchange="handleFileSelection(event)">
+    <input type="file" id="photoInput" accept="image/*,video/*" multiple style="display: none;" onchange="handleFileSelection(event)">
+
+    <!-- Floating Action Button for Mobile -->
+    <button class="fab" onclick="triggerFileUpload()" title="رفع ملفات">
+        <svg class="icon icon-lg" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="mobile-bottom-nav">
+        <button class="mobile-nav-btn active" id="mobTabDashboard" onclick="switchMainTab('dashboard')">
+            <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <span>الداش بورد</span>
+        </button>
+        <button class="mobile-nav-btn" id="mobTabFiles" onclick="switchMainTab('files')">
+            <svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+            <span>الملفات</span>
+        </button>
+        <button class="mobile-nav-btn" id="mobTabPhotos" onclick="navigateToCategory('photos')">
+            <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <span>الصور</span>
+        </button>
+        <button class="mobile-nav-btn" onclick="openSettingsModal()">
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>المسارات</span>
+        </button>
+    </nav>
+
+    <!-- Upload Progress Floating Toast -->
+    <div class="upload-toast" id="uploadToast">
+        <div class="upload-toast-header">
+            <span id="uploadStatusText">جارٍ الرفع...</span>
+            <span id="uploadPercentText" style="color: var(--primary);">0%</span>
+        </div>
+        <div class="upload-toast-bar">
+            <div class="upload-toast-fill" id="uploadProgressBar"></div>
+        </div>
+        <div id="uploadTargetNotice" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-en); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></div>
+    </div>
+
     <!-- Application JavaScript Engine -->
     <script>
+        // Default Config & Storage Paths Settings
+        const DEFAULT_SETTINGS = {
+            smartAutoSort: true,
+            photosPath: 'C:/CasaOS/DATA/Photos',
+            videosPath: 'C:/CasaOS/DATA/Videos',
+            documentsPath: 'C:/CasaOS/DATA/Documents',
+            musicPath: 'C:/CasaOS/DATA/Music',
+            mobilePath: 'C:/CasaOS/DATA/Mobile_Uploads',
+            defaultPath: 'C:/CasaOS/DATA'
+        };
+
+        let appSettings = loadSavedSettings();
+
         // State
-        let activeTab = 'dashboard'; // 'dashboard' | 'files' | 'photos'
-        let currentPath = '/DATA';
+        let activeTab = 'dashboard'; // 'dashboard' | 'files'
+        let currentPath = appSettings.defaultPath || '/DATA';
         let allItems = [];
         let filteredItems = [];
         let activeFilter = 'all';
@@ -2059,32 +2346,124 @@
         // Bootstrap App
         document.addEventListener('DOMContentLoaded', () => {
             setupDragAndDrop();
+            applySettingsToUI();
             loadLiveMetrics();
             setupPhoneQRCode();
-            // Start live periodic stats refresh every 2.5 seconds
             setInterval(loadLiveMetrics, 2500);
         });
 
-        // View Switching (Dashboard vs Files vs Photos)
+        // Settings Manager
+        function loadSavedSettings() {
+            try {
+                const saved = localStorage.getItem('casaos_path_settings');
+                return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : { ...DEFAULT_SETTINGS };
+            } catch {
+                return { ...DEFAULT_SETTINGS };
+            }
+        }
+
+        function saveSettings() {
+            appSettings.smartAutoSort = document.getElementById('smartAutoSortToggle').checked;
+            appSettings.photosPath = document.getElementById('settingPhotosPath').value.trim() || DEFAULT_SETTINGS.photosPath;
+            appSettings.videosPath = document.getElementById('settingVideosPath').value.trim() || DEFAULT_SETTINGS.videosPath;
+            appSettings.documentsPath = document.getElementById('settingDocumentsPath').value.trim() || DEFAULT_SETTINGS.documentsPath;
+            appSettings.musicPath = document.getElementById('settingMusicPath').value.trim() || DEFAULT_SETTINGS.musicPath;
+            appSettings.mobilePath = document.getElementById('settingMobilePath').value.trim() || DEFAULT_SETTINGS.mobilePath;
+            appSettings.defaultPath = document.getElementById('settingDefaultPath').value.trim() || DEFAULT_SETTINGS.defaultPath;
+
+            localStorage.setItem('casaos_path_settings', JSON.stringify(appSettings));
+            applySettingsToUI();
+            closeSettingsModal();
+            alert('تم حفظ إعدادات المسارات والتصنيف بنجاح!');
+        }
+
+        function resetDefaultSettings() {
+            appSettings = { ...DEFAULT_SETTINGS };
+            localStorage.setItem('casaos_path_settings', JSON.stringify(appSettings));
+            applySettingsToUI();
+            populateSettingsModal();
+        }
+
+        function applySettingsToUI() {
+            const label = document.getElementById('autoSortStatusLabel');
+            if (label) {
+                label.innerText = appSettings.smartAutoSort ? 'مفعلة تلقائياً' : 'معطلة (الحفظ بالمجلد الحالي)';
+                label.style.color = appSettings.smartAutoSort ? 'var(--primary)' : 'var(--text-muted)';
+            }
+            const desc = document.getElementById('dropDescText');
+            if (desc) {
+                desc.innerText = appSettings.smartAutoSort 
+                    ? 'سيتم تصنيف الملفات تلقائياً (صور -> Photos, فيديو -> Videos, مستندات -> Documents)' 
+                    : `سيتم حفظ الملفات في المجلد الحالي (${currentPath})`;
+            }
+
+            document.getElementById('shortcutPhotoPath') && (document.getElementById('shortcutPhotoPath').innerText = appSettings.photosPath);
+            document.getElementById('shortcutVideoPath') && (document.getElementById('shortcutVideoPath').innerText = appSettings.videosPath);
+            document.getElementById('shortcutDocPath') && (document.getElementById('shortcutDocPath').innerText = appSettings.documentsPath);
+        }
+
+        function openSettingsModal() {
+            populateSettingsModal();
+            document.getElementById('settingsModal').classList.add('active');
+        }
+
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+
+        function populateSettingsModal() {
+            document.getElementById('smartAutoSortToggle').checked = !!appSettings.smartAutoSort;
+            document.getElementById('settingPhotosPath').value = appSettings.photosPath;
+            document.getElementById('settingVideosPath').value = appSettings.videosPath;
+            document.getElementById('settingDocumentsPath').value = appSettings.documentsPath;
+            document.getElementById('settingMusicPath').value = appSettings.musicPath;
+            document.getElementById('settingMobilePath').value = appSettings.mobilePath;
+            document.getElementById('settingDefaultPath').value = appSettings.defaultPath;
+
+            // Generate Partition quick switch buttons
+            if (lastDisksData && lastDisksData.length > 0) {
+                let btnsHtml = '';
+                lastDisksData.forEach(d => {
+                    const driveLetter = d.drive || 'C';
+                    btnsHtml += `
+                        <button class="btn btn-secondary" style="height: 32px; font-size: 0.8rem; padding: 0 0.75rem;" onclick="setQuickDriveTarget('${driveLetter}')">
+                            تحويل المسار إلى (${driveLetter}:)
+                        </button>
+                    `;
+                });
+                document.getElementById('quickPartitionButtons').innerHTML = btnsHtml;
+            }
+        }
+
+        function setQuickDriveTarget(drive) {
+            const basePath = `${drive}:/CasaOS/DATA`;
+            document.getElementById('settingDefaultPath').value = basePath;
+            document.getElementById('settingPhotosPath').value = `${basePath}/Photos`;
+            document.getElementById('settingVideosPath').value = `${basePath}/Videos`;
+            document.getElementById('settingDocumentsPath').value = `${basePath}/Documents`;
+            document.getElementById('settingMusicPath').value = `${basePath}/Music`;
+            document.getElementById('settingMobilePath').value = `${basePath}/Mobile_Uploads`;
+        }
+
+        function toggleSmartSorting(enabled) {
+            appSettings.smartAutoSort = enabled;
+            applySettingsToUI();
+        }
+
+        // View Switching (Dashboard vs Files)
         function switchMainTab(tab) {
             activeTab = tab;
 
-            // Header Tabs State
             document.getElementById('topTabDashboard')?.classList.toggle('active', tab === 'dashboard');
             document.getElementById('topTabFiles')?.classList.toggle('active', tab === 'files');
-            document.getElementById('topTabPhotos')?.classList.toggle('active', tab === 'photos');
+            document.getElementById('topTabPhotos')?.classList.toggle('active', false);
 
-            // Mobile Tabs State
             document.getElementById('mobTabDashboard')?.classList.toggle('active', tab === 'dashboard');
             document.getElementById('mobTabFiles')?.classList.toggle('active', tab === 'files');
-            document.getElementById('mobTabPhotos')?.classList.toggle('active', tab === 'photos');
+            document.getElementById('mobTabPhotos')?.classList.toggle('active', false);
 
-            // Sidebar Nav State
             document.getElementById('sideNavDashboard')?.classList.toggle('active', tab === 'dashboard');
-            document.getElementById('navAllFiles')?.classList.toggle('active', tab === 'files' && (currentPath === '/DATA' || currentPath === 'C:/CasaOS/DATA'));
-            document.getElementById('navPhotos')?.classList.toggle('active', tab === 'photos' || currentPath.includes('Photos'));
 
-            // View Sections Visibility
             const dashSection = document.getElementById('dashboardView');
             const filesSection = document.getElementById('filesView');
             const headerNewFolder = document.getElementById('headerNewFolderBtn');
@@ -2093,20 +2472,40 @@
                 dashSection.classList.add('active');
                 filesSection.classList.remove('active');
                 if (headerNewFolder) headerNewFolder.style.display = 'none';
-            } else if (tab === 'photos') {
-                dashSection.classList.remove('active');
-                filesSection.classList.add('active');
-                if (headerNewFolder) headerNewFolder.style.display = 'inline-flex';
-                currentPath = 'C:/CasaOS/DATA/Photos';
-                setCategoryFilter('photos');
-                loadCurrentFolder();
             } else {
                 dashSection.classList.remove('active');
                 filesSection.classList.add('active');
                 if (headerNewFolder) headerNewFolder.style.display = 'inline-flex';
-                setCategoryFilter('all');
                 loadCurrentFolder();
             }
+        }
+
+        function navigateToCategory(cat) {
+            switchMainTab('files');
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+
+            if (cat === 'photos') {
+                currentPath = appSettings.photosPath || 'C:/CasaOS/DATA/Photos';
+                document.getElementById('navPhotos')?.classList.add('active');
+                setCategoryFilter('photos');
+            } else if (cat === 'videos') {
+                currentPath = appSettings.videosPath || 'C:/CasaOS/DATA/Videos';
+                document.getElementById('navVideos')?.classList.add('active');
+                setCategoryFilter('videos');
+            } else if (cat === 'documents') {
+                currentPath = appSettings.documentsPath || 'C:/CasaOS/DATA/Documents';
+                document.getElementById('navDocuments')?.classList.add('active');
+                setCategoryFilter('documents');
+            } else if (cat === 'music') {
+                currentPath = appSettings.musicPath || 'C:/CasaOS/DATA/Music';
+                document.getElementById('navMusic')?.classList.add('active');
+                setCategoryFilter('music');
+            } else if (cat === 'mobile') {
+                currentPath = appSettings.mobilePath || 'C:/CasaOS/DATA/Mobile_Uploads';
+                document.getElementById('navMobileUploads')?.classList.add('active');
+                setCategoryFilter('all');
+            }
+            loadCurrentFolder();
         }
 
         // Folder Navigation
@@ -2116,11 +2515,18 @@
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             if (path.includes('Photos')) {
                 document.getElementById('navPhotos')?.classList.add('active');
+            } else if (path.includes('Videos')) {
+                document.getElementById('navVideos')?.classList.add('active');
             } else if (path.includes('Documents')) {
                 document.getElementById('navDocuments')?.classList.add('active');
-            } else if (path === '/DATA' || path === 'C:/CasaOS/DATA') {
+            } else if (path.includes('Music')) {
+                document.getElementById('navMusic')?.classList.add('active');
+            } else if (path.includes('Mobile_Uploads')) {
+                document.getElementById('navMobileUploads')?.classList.add('active');
+            } else if (path === '/DATA' || path === 'C:/CasaOS/DATA' || path === appSettings.defaultPath) {
                 document.getElementById('navAllFiles')?.classList.add('active');
             }
+            setCategoryFilter('all');
             loadCurrentFolder();
         }
 
@@ -2150,7 +2556,7 @@
                         <div class="state-container" style="color: var(--danger);">
                             <svg class="icon icon-xl" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                             <h4>تعذر قراءة المجلد</h4>
-                            <p style="font-size: 0.85rem;">${json.message || 'خطأ غير معروف'}</p>
+                            <p style="font-size: 0.85rem;">${json.message || 'المجلد فارغ أو غير منشأ بعد'}</p>
                         </div>
                     `;
                 }
@@ -2185,10 +2591,18 @@
                     accumulated += (accumulated.endsWith('\\') || accumulated.endsWith('/') ? '' : '/') + part;
                 }
                 const isLast = (i === parts.length - 1);
+                let label = part;
+                if (part === 'DATA') label = '📁 التخزين الرئيسي (DATA)';
+                if (part === 'Photos') label = '📸 الصور (Photos)';
+                if (part === 'Videos') label = '🎬 الفيديوهات (Videos)';
+                if (part === 'Documents') label = '📄 المستندات (Documents)';
+                if (part === 'Music') label = '🎵 الصوتيات (Music)';
+                if (part === 'Mobile_Uploads') label = '📱 رفع الهاتف (Mobile)';
+
                 html += `
                     <span class="crumb-separator">/</span>
                     <span class="crumb-item ${isLast ? 'active' : ''}" onclick="${isLast ? '' : `navigateToFolder('${accumulated.replace(/\\/g, '\\\\')}')`}">
-                        ${part === 'DATA' ? '📁 التخزين الرئيسي (DATA)' : part}
+                        ${label}
                     </span>
                 `;
             }
@@ -2206,6 +2620,7 @@
             if (category === 'photos') document.getElementById('filterPhotos')?.classList.add('active');
             if (category === 'videos') document.getElementById('filterVideos')?.classList.add('active');
             if (category === 'documents') document.getElementById('filterDocs')?.classList.add('active');
+            if (category === 'music') document.getElementById('filterMusic')?.classList.add('active');
             applyCurrentFilter();
         }
 
@@ -2218,6 +2633,8 @@
                 filteredItems = allItems.filter(i => isVideo(i.name) || i.is_dir);
             } else if (activeFilter === 'documents') {
                 filteredItems = allItems.filter(i => isDoc(i.name) || i.is_dir);
+            } else if (activeFilter === 'music') {
+                filteredItems = allItems.filter(i => isMusic(i.name) || i.is_dir);
             }
             renderItems();
         }
@@ -2310,7 +2727,7 @@
                 const path = item.path || (currentPath.endsWith('/') || currentPath.endsWith('\\') ? currentPath + item.name : currentPath + '/' + item.name);
                 const fileUrl = `/v1/file?path=${encodeURIComponent(path)}`;
 
-                const icon = isDir ? ICONS.folder : (isPhoto(item.name) ? ICONS.image : (isVideo(item.name) ? ICONS.video : ICONS.generic));
+                const icon = isDir ? ICONS.folder : (isPhoto(item.name) ? ICONS.image : (isVideo(item.name) ? ICONS.video : (isMusic(item.name) ? ICONS.music : ICONS.generic)));
                 const clickAction = isDir 
                     ? `navigateToFolder('${path.replace(/\\/g, '\\\\')}')` 
                     : (isPhoto(item.name) ? `openLightboxImage('${path.replace(/\\/g, '\\\\')}')` : (isVideo(item.name) ? `openLightboxVideo('${path.replace(/\\/g, '\\\\')}')` : `window.open('${fileUrl}')`));
@@ -2507,21 +2924,44 @@
             }
         }
 
-        // File Types Detectors
+        // =========================================================================
+        // File Types & Auto-Categorization Engine
+        // =========================================================================
         function isPhoto(name) {
-            return /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif)$/i.test(name);
+            return /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif|heic|heif|raw|ico|tiff|psd|ai)$/i.test(name);
         }
         function isVideo(name) {
-            return /\.(mp4|mkv|webm|mov|avi|flv)$/i.test(name);
+            return /\.(mp4|mkv|webm|mov|avi|flv|wmv|m4v|3gp|ts|mpeg)$/i.test(name);
         }
         function isMusic(name) {
-            return /\.(mp3|wav|ogg|flac|m4a)$/i.test(name);
+            return /\.(mp3|wav|ogg|flac|m4a|aac|wma|opus)$/i.test(name);
         }
         function isDoc(name) {
-            return /\.(pdf|docx?|xlsx?|pptx?|txt|md|csv)$/i.test(name);
+            return /\.(pdf|docx?|xlsx?|pptx?|txt|md|csv|rtf|odt|epub)$/i.test(name);
         }
         function isZip(name) {
-            return /\.(zip|rar|7z|tar|gz)$/i.test(name);
+            return /\.(zip|rar|7z|tar|gz|bz2|iso)$/i.test(name);
+        }
+
+        // Determine destination folder based on smart categorization settings
+        function getSmartDestinationPath(fileName, isMobileUpload = false) {
+            if (!appSettings.smartAutoSort) {
+                return currentPath;
+            }
+
+            if (isPhoto(fileName)) {
+                return appSettings.photosPath || 'C:/CasaOS/DATA/Photos';
+            } else if (isVideo(fileName)) {
+                return appSettings.videosPath || 'C:/CasaOS/DATA/Videos';
+            } else if (isDoc(fileName)) {
+                return appSettings.documentsPath || 'C:/CasaOS/DATA/Documents';
+            } else if (isMusic(fileName)) {
+                return appSettings.musicPath || 'C:/CasaOS/DATA/Music';
+            } else if (isMobileUpload) {
+                return appSettings.mobilePath || 'C:/CasaOS/DATA/Mobile_Uploads';
+            } else {
+                return currentPath || appSettings.defaultPath || 'C:/CasaOS/DATA';
+            }
         }
 
         // Format Utilities
@@ -2568,28 +3008,33 @@
         async function handleFileSelection(e) {
             const files = e.target.files;
             if (!files || files.length === 0) return;
-            await uploadFiles(files);
+            const isMobile = e.target.id === 'photoInput';
+            await uploadFiles(files, isMobile);
             e.target.value = '';
         }
 
-        async function uploadFiles(files) {
+        async function uploadFiles(files, isMobile = false) {
             const toast = document.getElementById('uploadToast');
             const bar = document.getElementById('uploadProgressBar');
             const percentText = document.getElementById('uploadPercentText');
             const statusText = document.getElementById('uploadStatusText');
+            const targetNotice = document.getElementById('uploadTargetNotice');
 
             toast.style.display = 'flex';
             bar.style.width = '0%';
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
+                const targetDir = getSmartDestinationPath(file.name, isMobile);
+                
                 statusText.innerText = `رفع (${i + 1}/${files.length}): ${file.name}`;
+                targetNotice.innerText = `المسار: ${targetDir}`;
                 
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('filename', file.name);
                 formData.append('relativePath', file.name);
-                formData.append('path', currentPath);
+                formData.append('path', targetDir);
 
                 await new Promise((resolve) => {
                     const xhr = new XMLHttpRequest();
@@ -2609,7 +3054,7 @@
                 });
             }
 
-            statusText.innerText = 'تم الرفع بنجاح!';
+            statusText.innerText = 'تم الرفع والتصنيف بنجاح!';
             bar.style.width = '100%';
             setTimeout(() => {
                 toast.style.display = 'none';

@@ -76,7 +76,10 @@ func init() {
 
 	if runtime.GOOS == "windows" {
 		_ = os.MkdirAll(`C:\CasaOS\DATA\Photos`, os.ModePerm)
+		_ = os.MkdirAll(`C:\CasaOS\DATA\Videos`, os.ModePerm)
 		_ = os.MkdirAll(`C:\CasaOS\DATA\Documents`, os.ModePerm)
+		_ = os.MkdirAll(`C:\CasaOS\DATA\Music`, os.ModePerm)
+		_ = os.MkdirAll(`C:\CasaOS\DATA\Mobile_Uploads`, os.ModePerm)
 		_ = os.MkdirAll(config.CommonInfo.RuntimePath, os.ModePerm)
 		_ = os.MkdirAll(config.AppInfo.LogPath, os.ModePerm)
 	}
