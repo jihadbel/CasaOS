@@ -79,6 +79,8 @@ func init() {
 		_ = os.MkdirAll(`C:\CasaOS\DATA\Videos`, os.ModePerm)
 		_ = os.MkdirAll(`C:\CasaOS\DATA\Documents`, os.ModePerm)
 		_ = os.MkdirAll(`C:\CasaOS\DATA\Music`, os.ModePerm)
+		_ = os.MkdirAll(`C:\CasaOS\DATA\Applications`, os.ModePerm)
+		_ = os.MkdirAll(`C:\CasaOS\DATA\Archives`, os.ModePerm)
 		_ = os.MkdirAll(`C:\CasaOS\DATA\Mobile_Uploads`, os.ModePerm)
 		_ = os.MkdirAll(config.CommonInfo.RuntimePath, os.ModePerm)
 		_ = os.MkdirAll(config.AppInfo.LogPath, os.ModePerm)

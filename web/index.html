@@ -32,6 +32,10 @@
             --disk-bg: #f5f3ff;
             --net-color: #d97706;
             --net-bg: #fffbeb;
+            --app-color: #0284c7;
+            --app-bg: #f0f9ff;
+            --archive-color: #ea580c;
+            --archive-bg: #fff7ed;
 
             --text-main: #0f172a;
             --text-secondary: #475569;
@@ -1392,7 +1396,7 @@
             border: 1px solid var(--border);
             box-shadow: var(--shadow-xl);
             width: 100%;
-            max-width: 540px;
+            max-width: 560px;
             padding: 1.75rem;
             display: flex;
             flex-direction: column;
@@ -1690,7 +1694,7 @@
                 <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                 <span>مدير الملفات</span>
             </button>
-            <button class="header-tab-btn" id="topTabPhotos" onclick="switchMainTab('photos')">
+            <button class="header-tab-btn" id="topTabPhotos" onclick="navigateToCategory('photos')">
                 <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                 <span>الصور والمعرض</span>
             </button>
@@ -1753,6 +1757,14 @@
                         <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                         <span>المستندات (Documents)</span>
                     </li>
+                    <li class="nav-item" id="navApps" onclick="navigateToCategory('apps')">
+                        <svg class="icon" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/><rect x="2" y="2" width="20" height="20" rx="3" stroke-dasharray="3 3"/></svg>
+                        <span>البرامج والـ APK (Apps)</span>
+                    </li>
+                    <li class="nav-item" id="navArchives" onclick="navigateToCategory('archives')">
+                        <svg class="icon" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                        <span>الملفات المضغوطة (Zip)</span>
+                    </li>
                     <li class="nav-item" id="navMusic" onclick="navigateToCategory('music')">
                         <svg class="icon" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
                         <span>الصوتيات (Music)</span>
@@ -1809,7 +1821,7 @@
                                 <span>الخادم متصل ونشط</span>
                             </div>
                         </div>
-                        <p class="hero-subtitle">مراقبة حية لاستهلاك المعالج، الرام، سعة التخزين الإجمالية، وتفاصيل كل بارتشن مع التصنيف الذكي للملفات</p>
+                        <p class="hero-subtitle">مراقبة حية لاستهلاك المعالج، الرام، الأقراص والبارتشنات مع دعم البرامج (EXE, MSI, APK) والمضغوطة</p>
                     </div>
 
                     <div class="hero-meta-pills">
@@ -1936,6 +1948,26 @@
                 </div>
 
                 <div class="shortcuts-grid">
+                    <div class="shortcut-card" onclick="navigateToCategory('apps')">
+                        <div class="shortcut-icon" style="background: var(--app-bg); color: var(--app-color);">
+                            <svg class="icon" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/><rect x="2" y="2" width="20" height="20" rx="3" stroke-dasharray="3 3"/></svg>
+                        </div>
+                        <div class="shortcut-text">
+                            <h5>البرامج والـ APK</h5>
+                            <p id="shortcutAppPath">C:/CasaOS/DATA/Applications</p>
+                        </div>
+                    </div>
+
+                    <div class="shortcut-card" onclick="navigateToCategory('archives')">
+                        <div class="shortcut-icon" style="background: var(--archive-bg); color: var(--archive-color);">
+                            <svg class="icon" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                        </div>
+                        <div class="shortcut-text">
+                            <h5>الملفات المضغوطة (Zip)</h5>
+                            <p id="shortcutArchivePath">C:/CasaOS/DATA/Archives</p>
+                        </div>
+                    </div>
+
                     <div class="shortcut-card" onclick="navigateToCategory('photos')">
                         <div class="shortcut-icon" style="background: var(--primary-light); color: var(--primary);">
                             <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -1943,26 +1975,6 @@
                         <div class="shortcut-text">
                             <h5>مجلد الصور (Photos)</h5>
                             <p id="shortcutPhotoPath">C:/CasaOS/DATA/Photos</p>
-                        </div>
-                    </div>
-
-                    <div class="shortcut-card" onclick="navigateToCategory('videos')">
-                        <div class="shortcut-icon" style="background: var(--disk-bg); color: var(--disk-color);">
-                            <svg class="icon" viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-                        </div>
-                        <div class="shortcut-text">
-                            <h5>مجلد الفيديوهات (Videos)</h5>
-                            <p id="shortcutVideoPath">C:/CasaOS/DATA/Videos</p>
-                        </div>
-                    </div>
-
-                    <div class="shortcut-card" onclick="navigateToCategory('documents')">
-                        <div class="shortcut-icon" style="background: var(--ram-bg); color: var(--ram-color);">
-                            <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                        </div>
-                        <div class="shortcut-text">
-                            <h5>مجلد المستندات (Documents)</h5>
-                            <p id="shortcutDocPath">C:/CasaOS/DATA/Documents</p>
                         </div>
                     </div>
 
@@ -1989,7 +2001,7 @@
                 <div id="smartRoutingNotice" style="display: flex; align-items: center; justify-content: space-between; background: #ffffff; border: 1px solid var(--border); padding: 0.75rem 1.25rem; border-radius: var(--radius-md); font-size: 0.85rem; color: var(--text-secondary);">
                     <div style="display: flex; align-items: center; gap: 0.6rem;">
                         <span style="display: inline-flex; width: 10px; height: 10px; border-radius: 50%; background: var(--success);"></span>
-                        <span>ميزة <b>التصنيف الذكي للملفات</b>: <span id="autoSortStatusLabel" style="color: var(--primary); font-weight: 600;">مفعلة تلقائياً</span> (يتم توجيه الصور، الفيديو، والمستندات لمجلداتها المخصصة)</span>
+                        <span>ميزة <b>التصنيف الذكي للملفات</b>: <span id="autoSortStatusLabel" style="color: var(--primary); font-weight: 600;">مفعلة تلقائياً</span> (توجيه الصور، البرامج EXE/APK، والمضغوطة تلقائياً)</span>
                     </div>
                     <button class="btn btn-secondary" style="height: 30px; font-size: 0.78rem; padding: 0 0.75rem;" onclick="openSettingsModal()">
                         تغيير المسارات ⚙️
@@ -2031,6 +2043,14 @@
                     <button class="chip active" id="filterAll" onclick="setCategoryFilter('all')">
                         <svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
                         <span>الكل (<span id="countAll">0</span>)</span>
+                    </button>
+                    <button class="chip" id="filterApps" onclick="setCategoryFilter('apps')">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                        <span>البرامج والـ APK</span>
+                    </button>
+                    <button class="chip" id="filterArchives" onclick="setCategoryFilter('archives')">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg>
+                        <span>الملفات المضغوطة</span>
                     </button>
                     <button class="chip" id="filterPhotos" onclick="setCategoryFilter('photos')">
                         <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
@@ -2083,7 +2103,7 @@
             <div class="modal-header">
                 <div class="modal-title">
                     <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                    <span>إعدادات مسارات التخزين والأجهزة</span>
+                    <span>إعدادات مسارات التخزين والتصنيف</span>
                 </div>
                 <button class="modal-close" onclick="closeSettingsModal()">
                     <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -2100,7 +2120,7 @@
                             <svg class="icon icon-sm" style="color: var(--primary);" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                             <span>التصنيف الذكي التلقائي</span>
                         </h4>
-                        <p>توجيه الملفات المرفوعة لمجلداتها المناسبة تلقائياً حسب نوعها (صور، فيديو، مستندات...)</p>
+                        <p>توجيه البرامج والمضغوطة والصور والمستندات لمجلداتها المناسبة تلقائياً</p>
                     </div>
                     <div style="display: flex; align-items: center; justify-content: flex-end;">
                         <label class="switch">
@@ -2110,11 +2130,33 @@
                     </div>
                 </div>
 
+                <!-- Applications Path -->
+                <div class="settings-row">
+                    <div class="settings-label-col">
+                        <h4>💻 مسار البرامج والـ APK</h4>
+                        <p>ملفات التثبيت (EXE, MSI, APK, BAT...)</p>
+                    </div>
+                    <div class="settings-input-group">
+                        <input type="text" id="settingAppsPath" class="path-input" value="C:/CasaOS/DATA/Applications">
+                    </div>
+                </div>
+
+                <!-- Archives Path -->
+                <div class="settings-row">
+                    <div class="settings-label-col">
+                        <h4>📦 مسار الملفات المضغوطة</h4>
+                        <p>ملفات الأرشيف (ZIP, RAR, 7Z, TAR, ISO...)</p>
+                    </div>
+                    <div class="settings-input-group">
+                        <input type="text" id="settingArchivesPath" class="path-input" value="C:/CasaOS/DATA/Archives">
+                    </div>
+                </div>
+
                 <!-- Photos Path -->
                 <div class="settings-row">
                     <div class="settings-label-col">
                         <h4>📸 مسار حفظ الصور</h4>
-                        <p>المجلد الذي تحفظ فيه الصور عند الرفع</p>
+                        <p>المجلد الذي تحفظ فيه الصور (JPG, PNG, HEIC...)</p>
                     </div>
                     <div class="settings-input-group">
                         <input type="text" id="settingPhotosPath" class="path-input" value="C:/CasaOS/DATA/Photos">
@@ -2125,7 +2167,7 @@
                 <div class="settings-row">
                     <div class="settings-label-col">
                         <h4>🎬 مسار حفظ الفيديوهات</h4>
-                        <p>المجلد المخصص لمقاطع الفيديو والأفلام</p>
+                        <p>المجلد المخصص لمقاطع الفيديو (MP4, MKV...)</p>
                     </div>
                     <div class="settings-input-group">
                         <input type="text" id="settingVideosPath" class="path-input" value="C:/CasaOS/DATA/Videos">
@@ -2136,7 +2178,7 @@
                 <div class="settings-row">
                     <div class="settings-label-col">
                         <h4>📄 مسار المستندات والملفات</h4>
-                        <p>مجلد الكتب والـ PDF وملفات Word/Excel</p>
+                        <p>مجلد الكتب والـ PDF وملفات Office</p>
                     </div>
                     <div class="settings-input-group">
                         <input type="text" id="settingDocumentsPath" class="path-input" value="C:/CasaOS/DATA/Documents">
@@ -2206,7 +2248,7 @@
                 </button>
             </div>
             <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5;">
-                تأكد من اتصال الهاتف بنفس شبكة الـ Wi-Fi، ثم امسح الكود لرفع صورك مباشرة من ألبوم الهاتف إلى الحاسوب:
+                تأكد من اتصال الهاتف بنفس شبكة الـ Wi-Fi، ثم امسح الكود لرفع صورك وملفاتك أو تطبيقاتك مباشرة إلى الحاسوب:
             </p>
             <div class="qr-box">
                 <img id="qrImage" src="" alt="QR Code">
@@ -2222,7 +2264,7 @@
             </div>
             <button class="btn btn-primary" onclick="triggerMobilePhotoUpload()" style="width: 100%;">
                 <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                <span>رفع صور من ألبوم الهاتف</span>
+                <span>رفع صور أو ملفات من الهاتف</span>
             </button>
         </div>
     </div>
@@ -2267,7 +2309,7 @@
 
     <!-- Hidden Input for File Upload -->
     <input type="file" id="fileInput" multiple style="display: none;" onchange="handleFileSelection(event)">
-    <input type="file" id="photoInput" accept="image/*,video/*" multiple style="display: none;" onchange="handleFileSelection(event)">
+    <input type="file" id="photoInput" multiple style="display: none;" onchange="handleFileSelection(event)">
 
     <!-- Floating Action Button for Mobile -->
     <button class="fab" onclick="triggerFileUpload()" title="رفع ملفات">
@@ -2311,6 +2353,8 @@
         // Default Config & Storage Paths Settings
         const DEFAULT_SETTINGS = {
             smartAutoSort: true,
+            appsPath: 'C:/CasaOS/DATA/Applications',
+            archivesPath: 'C:/CasaOS/DATA/Archives',
             photosPath: 'C:/CasaOS/DATA/Photos',
             videosPath: 'C:/CasaOS/DATA/Videos',
             documentsPath: 'C:/CasaOS/DATA/Documents',
@@ -2334,12 +2378,13 @@
         const ICONS = {
             folder: `<svg class="icon item-icon-folder" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
             drive: `<svg class="icon item-icon-folder" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>`,
+            app: `<svg class="icon item-icon-file" style="color: #0284c7;" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/><rect x="2" y="2" width="20" height="20" rx="3" stroke-dasharray="3 3"/></svg>`,
+            apk: `<svg class="icon item-icon-file" style="color: #10b981;" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/><path d="M8 2v3"/><path d="M16 2v3"/></svg>`,
+            archive: `<svg class="icon item-icon-file" style="color: #ea580c;" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`,
             image: `<svg class="icon item-icon-file" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`,
             video: `<svg class="icon item-icon-file" viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>`,
             music: `<svg class="icon item-icon-file" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
             document: `<svg class="icon item-icon-file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
-            archive: `<svg class="icon item-icon-file" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`,
-            code: `<svg class="icon item-icon-file" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
             generic: `<svg class="icon item-icon-file" viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>`
         };
 
@@ -2364,6 +2409,8 @@
 
         function saveSettings() {
             appSettings.smartAutoSort = document.getElementById('smartAutoSortToggle').checked;
+            appSettings.appsPath = document.getElementById('settingAppsPath').value.trim() || DEFAULT_SETTINGS.appsPath;
+            appSettings.archivesPath = document.getElementById('settingArchivesPath').value.trim() || DEFAULT_SETTINGS.archivesPath;
             appSettings.photosPath = document.getElementById('settingPhotosPath').value.trim() || DEFAULT_SETTINGS.photosPath;
             appSettings.videosPath = document.getElementById('settingVideosPath').value.trim() || DEFAULT_SETTINGS.videosPath;
             appSettings.documentsPath = document.getElementById('settingDocumentsPath').value.trim() || DEFAULT_SETTINGS.documentsPath;
@@ -2393,10 +2440,12 @@
             const desc = document.getElementById('dropDescText');
             if (desc) {
                 desc.innerText = appSettings.smartAutoSort 
-                    ? 'سيتم تصنيف الملفات تلقائياً (صور -> Photos, فيديو -> Videos, مستندات -> Documents)' 
+                    ? 'سيتم تصنيف الملفات تلقائياً (برامج EXE/APK، مضغوطة ZIP، صور، فيديوهات، مستندات)' 
                     : `سيتم حفظ الملفات في المجلد الحالي (${currentPath})`;
             }
 
+            document.getElementById('shortcutAppPath') && (document.getElementById('shortcutAppPath').innerText = appSettings.appsPath);
+            document.getElementById('shortcutArchivePath') && (document.getElementById('shortcutArchivePath').innerText = appSettings.archivesPath);
             document.getElementById('shortcutPhotoPath') && (document.getElementById('shortcutPhotoPath').innerText = appSettings.photosPath);
             document.getElementById('shortcutVideoPath') && (document.getElementById('shortcutVideoPath').innerText = appSettings.videosPath);
             document.getElementById('shortcutDocPath') && (document.getElementById('shortcutDocPath').innerText = appSettings.documentsPath);
@@ -2413,6 +2462,8 @@
 
         function populateSettingsModal() {
             document.getElementById('smartAutoSortToggle').checked = !!appSettings.smartAutoSort;
+            document.getElementById('settingAppsPath').value = appSettings.appsPath || DEFAULT_SETTINGS.appsPath;
+            document.getElementById('settingArchivesPath').value = appSettings.archivesPath || DEFAULT_SETTINGS.archivesPath;
             document.getElementById('settingPhotosPath').value = appSettings.photosPath;
             document.getElementById('settingVideosPath').value = appSettings.videosPath;
             document.getElementById('settingDocumentsPath').value = appSettings.documentsPath;
@@ -2427,7 +2478,7 @@
                     const driveLetter = d.drive || 'C';
                     btnsHtml += `
                         <button class="btn btn-secondary" style="height: 32px; font-size: 0.8rem; padding: 0 0.75rem;" onclick="setQuickDriveTarget('${driveLetter}')">
-                            تحويل المسار إلى (${driveLetter}:)
+                            تحويل المسارات إلى (${driveLetter}:)
                         </button>
                     `;
                 });
@@ -2438,6 +2489,8 @@
         function setQuickDriveTarget(drive) {
             const basePath = `${drive}:/CasaOS/DATA`;
             document.getElementById('settingDefaultPath').value = basePath;
+            document.getElementById('settingAppsPath').value = `${basePath}/Applications`;
+            document.getElementById('settingArchivesPath').value = `${basePath}/Archives`;
             document.getElementById('settingPhotosPath').value = `${basePath}/Photos`;
             document.getElementById('settingVideosPath').value = `${basePath}/Videos`;
             document.getElementById('settingDocumentsPath').value = `${basePath}/Documents`;
@@ -2484,7 +2537,15 @@
             switchMainTab('files');
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
 
-            if (cat === 'photos') {
+            if (cat === 'apps') {
+                currentPath = appSettings.appsPath || 'C:/CasaOS/DATA/Applications';
+                document.getElementById('navApps')?.classList.add('active');
+                setCategoryFilter('apps');
+            } else if (cat === 'archives') {
+                currentPath = appSettings.archivesPath || 'C:/CasaOS/DATA/Archives';
+                document.getElementById('navArchives')?.classList.add('active');
+                setCategoryFilter('archives');
+            } else if (cat === 'photos') {
                 currentPath = appSettings.photosPath || 'C:/CasaOS/DATA/Photos';
                 document.getElementById('navPhotos')?.classList.add('active');
                 setCategoryFilter('photos');
@@ -2513,7 +2574,11 @@
             currentPath = path;
             switchMainTab('files');
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-            if (path.includes('Photos')) {
+            if (path.includes('Applications')) {
+                document.getElementById('navApps')?.classList.add('active');
+            } else if (path.includes('Archives')) {
+                document.getElementById('navArchives')?.classList.add('active');
+            } else if (path.includes('Photos')) {
                 document.getElementById('navPhotos')?.classList.add('active');
             } else if (path.includes('Videos')) {
                 document.getElementById('navVideos')?.classList.add('active');
@@ -2593,6 +2658,8 @@
                 const isLast = (i === parts.length - 1);
                 let label = part;
                 if (part === 'DATA') label = '📁 التخزين الرئيسي (DATA)';
+                if (part === 'Applications') label = '💻 البرامج والتطبيقات (Applications)';
+                if (part === 'Archives') label = '📦 الملفات المضغوطة (Archives)';
                 if (part === 'Photos') label = '📸 الصور (Photos)';
                 if (part === 'Videos') label = '🎬 الفيديوهات (Videos)';
                 if (part === 'Documents') label = '📄 المستندات (Documents)';
@@ -2617,6 +2684,8 @@
             activeFilter = category;
             document.querySelectorAll('.filter-chips .chip').forEach(el => el.classList.remove('active'));
             if (category === 'all') document.getElementById('filterAll')?.classList.add('active');
+            if (category === 'apps') document.getElementById('filterApps')?.classList.add('active');
+            if (category === 'archives') document.getElementById('filterArchives')?.classList.add('active');
             if (category === 'photos') document.getElementById('filterPhotos')?.classList.add('active');
             if (category === 'videos') document.getElementById('filterVideos')?.classList.add('active');
             if (category === 'documents') document.getElementById('filterDocs')?.classList.add('active');
@@ -2627,6 +2696,10 @@
         function applyCurrentFilter() {
             if (activeFilter === 'all') {
                 filteredItems = [...allItems];
+            } else if (activeFilter === 'apps') {
+                filteredItems = allItems.filter(i => isApp(i.name) || i.is_dir);
+            } else if (activeFilter === 'archives') {
+                filteredItems = allItems.filter(i => isZip(i.name) || i.is_dir);
             } else if (activeFilter === 'photos') {
                 filteredItems = allItems.filter(i => isPhoto(i.name) || i.is_dir);
             } else if (activeFilter === 'videos') {
@@ -2678,12 +2751,14 @@
                     previewHtml = `<img src="${fileUrl}" loading="lazy" alt="${item.name}" onerror="this.parentElement.innerHTML=ICONS.image;">`;
                 } else if (isVideo(item.name)) {
                     previewHtml = ICONS.video;
+                } else if (isApp(item.name)) {
+                    previewHtml = isApk(item.name) ? ICONS.apk : ICONS.app;
+                } else if (isZip(item.name)) {
+                    previewHtml = ICONS.archive;
                 } else if (isMusic(item.name)) {
                     previewHtml = ICONS.music;
                 } else if (isDoc(item.name)) {
                     previewHtml = ICONS.document;
-                } else if (isZip(item.name)) {
-                    previewHtml = ICONS.archive;
                 } else {
                     previewHtml = ICONS.generic;
                 }
@@ -2727,7 +2802,7 @@
                 const path = item.path || (currentPath.endsWith('/') || currentPath.endsWith('\\') ? currentPath + item.name : currentPath + '/' + item.name);
                 const fileUrl = `/v1/file?path=${encodeURIComponent(path)}`;
 
-                const icon = isDir ? ICONS.folder : (isPhoto(item.name) ? ICONS.image : (isVideo(item.name) ? ICONS.video : (isMusic(item.name) ? ICONS.music : ICONS.generic)));
+                const icon = isDir ? ICONS.folder : (isPhoto(item.name) ? ICONS.image : (isVideo(item.name) ? ICONS.video : (isApp(item.name) ? (isApk(item.name) ? ICONS.apk : ICONS.app) : (isZip(item.name) ? ICONS.archive : (isMusic(item.name) ? ICONS.music : ICONS.generic)))));
                 const clickAction = isDir 
                     ? `navigateToFolder('${path.replace(/\\/g, '\\\\')}')` 
                     : (isPhoto(item.name) ? `openLightboxImage('${path.replace(/\\/g, '\\\\')}')` : (isVideo(item.name) ? `openLightboxVideo('${path.replace(/\\/g, '\\\\')}')` : `window.open('${fileUrl}')`));
@@ -2925,7 +3000,7 @@
         }
 
         // =========================================================================
-        // File Types & Auto-Categorization Engine
+        // File Types & Auto-Categorization Engine (Extended with EXE, APK, ZIP)
         // =========================================================================
         function isPhoto(name) {
             return /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif|heic|heif|raw|ico|tiff|psd|ai)$/i.test(name);
@@ -2939,8 +3014,14 @@
         function isDoc(name) {
             return /\.(pdf|docx?|xlsx?|pptx?|txt|md|csv|rtf|odt|epub)$/i.test(name);
         }
+        function isApp(name) {
+            return /\.(exe|msi|msix|appx|bat|cmd|ps1|vbs|reg|dll|apk|xapk|apks|aab)$/i.test(name);
+        }
+        function isApk(name) {
+            return /\.(apk|xapk|apks|aab)$/i.test(name);
+        }
         function isZip(name) {
-            return /\.(zip|rar|7z|tar|gz|bz2|iso)$/i.test(name);
+            return /\.(zip|rar|7z|tar|gz|bz2|xz|iso|img|dmg|cab)$/i.test(name);
         }
 
         // Determine destination folder based on smart categorization settings
@@ -2949,7 +3030,11 @@
                 return currentPath;
             }
 
-            if (isPhoto(fileName)) {
+            if (isApp(fileName)) {
+                return appSettings.appsPath || 'C:/CasaOS/DATA/Applications';
+            } else if (isZip(fileName)) {
+                return appSettings.archivesPath || 'C:/CasaOS/DATA/Archives';
+            } else if (isPhoto(fileName)) {
                 return appSettings.photosPath || 'C:/CasaOS/DATA/Photos';
             } else if (isVideo(fileName)) {
                 return appSettings.videosPath || 'C:/CasaOS/DATA/Videos';
