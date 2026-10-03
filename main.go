@@ -82,6 +82,8 @@ func init() {
 		_ = os.MkdirAll(`C:\CasaOS\DATA\Applications`, os.ModePerm)
 		_ = os.MkdirAll(`C:\CasaOS\DATA\Archives`, os.ModePerm)
 		_ = os.MkdirAll(`C:\CasaOS\DATA\Mobile_Uploads`, os.ModePerm)
+		_ = os.MkdirAll(`C:\CasaOS\DATA\RecycleBin`, os.ModePerm)
+		initTrashSystem()
 		_ = os.MkdirAll(config.CommonInfo.RuntimePath, os.ModePerm)
 		_ = os.MkdirAll(config.AppInfo.LogPath, os.ModePerm)
 	}
@@ -256,6 +258,22 @@ func main() {
 		p := r.URL.Path
 		if strings.HasPrefix(p, "/v1") || strings.HasPrefix(p, "/v2") || strings.HasPrefix(p, "/v3") || strings.HasPrefix(p, "/doc") || strings.HasPrefix(p, "/ping") {
 			mux.ServeHTTP(w, r)
+			return
+		}
+		if strings.HasPrefix(p, "/api/zip") {
+			handleZip(w, r)
+			return
+		}
+		if strings.HasPrefix(p, "/api/unzip") {
+			handleUnzip(w, r)
+			return
+		}
+		if strings.HasPrefix(p, "/api/trash") {
+			handleTrash(w, r)
+			return
+		}
+		if strings.HasPrefix(p, "/api/media/timeline") {
+			handleMediaTimeline(w, r)
 			return
 		}
 		// Serve Web Dashboard (try live file first for instant updates, fallback to embedded)

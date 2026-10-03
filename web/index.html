@@ -1660,6 +1660,386 @@
                 height: 105px;
             }
         }
+
+        /* ==========================================================================
+           RICH MEDIA, AUDIO PLAYER, TIMELINE, RECYCLE BIN, AND POWER TOOLS
+           ========================================================================== */
+        
+        /* Floating Audio Player */
+        .floating-audio-player {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(140%);
+            width: min(640px, calc(100vw - 32px));
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            box-shadow: 0 16px 36px -6px rgba(15, 23, 42, 0.16), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+            border-radius: var(--radius-xl);
+            padding: 0.85rem 1.25rem;
+            z-index: 120;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .floating-audio-player.active {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .audio-player-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+        .audio-track-info {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            min-width: 0;
+            flex: 1;
+        }
+        .audio-disc-thumb {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #38bdf8;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            flex-shrink: 0;
+            position: relative;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        .audio-disc-thumb::after {
+            content: '';
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ffffff;
+            position: absolute;
+        }
+        .audio-disc-thumb.spinning {
+            animation: spinDisc 4s linear infinite;
+        }
+        @keyframes spinDisc {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .audio-meta {
+            min-width: 0;
+            flex: 1;
+        }
+        .audio-title {
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: var(--text-main);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .audio-sub {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: var(--font-en);
+        }
+        .audio-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .audio-btn {
+            background: transparent;
+            border: none;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .audio-btn:hover {
+            background: var(--bg-surface-hover);
+            color: var(--text-main);
+        }
+        .audio-btn-play {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+        .audio-btn-play:hover {
+            background: var(--primary-hover);
+            color: #ffffff;
+            transform: scale(1.05);
+        }
+        .audio-progress-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: var(--font-en);
+        }
+        .audio-seek-bar {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 5px;
+            border-radius: 999px;
+            background: #e2e8f0;
+            outline: none;
+            cursor: pointer;
+        }
+        .audio-seek-bar::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: var(--primary);
+            border: 2px solid #ffffff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+        }
+
+        /* Timeline Gallery View */
+        .timeline-month-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 0.5rem;
+            margin: 1.5rem 0 1rem 0;
+            position: sticky;
+            top: var(--header-height);
+            background: rgba(248, 250, 252, 0.94);
+            backdrop-filter: blur(8px);
+            z-index: 10;
+            border-bottom: 1px solid var(--border);
+        }
+        .timeline-month-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .timeline-month-badge {
+            font-size: 0.78rem;
+            font-weight: 600;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 3px 10px;
+            border-radius: 999px;
+        }
+        .timeline-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 0.85rem;
+        }
+        .timeline-item {
+            aspect-ratio: 1 / 1;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            position: relative;
+            background: #e2e8f0;
+            cursor: pointer;
+            box-shadow: var(--shadow-xs);
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+        }
+        .timeline-item:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: var(--shadow-md);
+            z-index: 5;
+        }
+        .timeline-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: transform 0.3s ease;
+        }
+        .timeline-item:hover img {
+            transform: scale(1.05);
+        }
+        .timeline-item-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.7) 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: 0.65rem;
+            color: #ffffff;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .timeline-item:hover .timeline-item-overlay {
+            opacity: 1;
+        }
+        .timeline-item-name {
+            font-size: 0.78rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .timeline-video-badge {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(0,0,0,0.65);
+            backdrop-filter: blur(4px);
+            color: #ffffff;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Item Actions on Hover in File Explorer */
+        .item-card {
+            position: relative;
+        }
+        .item-quick-actions {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            z-index: 8;
+        }
+        .item-card:hover .item-quick-actions {
+            opacity: 1;
+        }
+        .item-action-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(4px);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.15s ease;
+        }
+        .item-action-btn:hover {
+            background: #ffffff;
+            color: var(--primary);
+            transform: scale(1.1);
+        }
+        .item-action-btn.danger:hover {
+            color: var(--danger);
+        }
+
+        /* Sort Dropdown */
+        .sort-dropdown {
+            height: 38px;
+            padding: 0 0.85rem;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: #ffffff;
+            font-family: var(--font-ar);
+            font-size: 0.85rem;
+            color: var(--text-main);
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.15s ease;
+        }
+        .sort-dropdown:focus {
+            border-color: var(--primary);
+        }
+
+        /* Document & Code Viewers */
+        .modal-card-large {
+            max-width: 960px;
+            width: 95%;
+            height: 85vh;
+        }
+        .code-editor-box {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            flex: 1;
+            min-height: 0;
+        }
+        .code-textarea {
+            width: 100%;
+            flex: 1;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 0.88rem;
+            line-height: 1.6;
+            padding: 1rem;
+            background: #0f172a;
+            color: #e2e8f0;
+            border-radius: var(--radius-md);
+            border: 1px solid #1e293b;
+            resize: none;
+            outline: none;
+            direction: ltr;
+            text-align: left;
+            white-space: pre;
+            tab-size: 4;
+            min-height: 400px;
+        }
+        .pdf-viewer-iframe {
+            width: 100%;
+            height: calc(85vh - 120px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: #f8fafc;
+        }
+
+        /* Recycle Bin */
+        .trash-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #ffffff;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+        }
+        .trash-table th {
+            background: #f8fafc;
+            padding: 0.85rem 1rem;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+            text-align: right;
+        }
+        .trash-table td {
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid var(--border-light);
+            font-size: 0.85rem;
+        }
+        .trash-table tr:hover td {
+            background: var(--bg-surface-hover);
+        }
     </style>
 </head>
 <body>
@@ -1686,15 +2066,19 @@
         <div class="header-nav-tabs">
             <button class="header-tab-btn active" id="topTabDashboard" onclick="switchMainTab('dashboard')">
                 <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                <span>لوحة التحكم والمراقبة</span>
+                <span>لوحة التحكم</span>
             </button>
             <button class="header-tab-btn" id="topTabFiles" onclick="switchMainTab('files')">
                 <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                 <span>مدير الملفات</span>
             </button>
-            <button class="header-tab-btn" id="topTabPhotos" onclick="navigateToCategory('photos')">
+            <button class="header-tab-btn" id="topTabTimeline" onclick="switchMainTab('timeline')">
                 <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                <span>الصور والمعرض</span>
+                <span>معرض الصور الذكي</span>
+            </button>
+            <button class="header-tab-btn" id="topTabTrash" onclick="switchMainTab('trash')">
+                <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                <span>سلة المحذوفات</span>
             </button>
             <button class="header-tab-btn" id="topTabSettings" onclick="openSettingsModal()">
                 <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1730,6 +2114,15 @@
                     <li class="nav-item active" id="sideNavDashboard" onclick="switchMainTab('dashboard')">
                         <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                         <span>لوحة التحكم ومراقبة النظام</span>
+                    </li>
+                    <li class="nav-item" id="sideNavTimeline" onclick="switchMainTab('timeline')">
+                        <svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        <span>معرض الصور الذكي (Timeline)</span>
+                    </li>
+                    <li class="nav-item" id="sideNavTrash" onclick="switchMainTab('trash')">
+                        <svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        <span>سلة المحذوفات (Recycle Bin)</span>
+                        <span id="trashCountBadge" class="status-badge" style="padding: 1px 7px; font-size: 0.72rem; margin-right: auto; display: none;">0</span>
                     </li>
                     <li class="nav-item" id="sideNavSettings" onclick="openSettingsModal()">
                         <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -2023,6 +2416,17 @@
                     </div>
 
                     <div class="view-controls">
+                        <!-- Sort Dropdown -->
+                        <select id="sortSelect" onchange="changeSort(this.value)" class="sort-dropdown" title="ترتيب الملفات">
+                            <option value="name_asc">🔤 الاسم (أ - ي)</option>
+                            <option value="name_desc">🔤 الاسم (ي - أ)</option>
+                            <option value="size_desc">💾 الحجم (الأكبر أولاً)</option>
+                            <option value="size_asc">💾 الحجم (الأصغر أولاً)</option>
+                            <option value="date_desc">📅 التاريخ (الأحدث أولاً)</option>
+                            <option value="date_asc">📅 التاريخ (الأقدم أولاً)</option>
+                            <option value="type">📂 النوع (المجلدات أولاً)</option>
+                        </select>
+
                         <div class="view-toggle-group">
                             <button class="view-toggle-btn active" id="btnGridView" onclick="setViewMode('grid')" title="عرض شبكي">
                                 <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -2031,6 +2435,10 @@
                                 <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
                             </button>
                         </div>
+                        <button class="btn btn-secondary" onclick="compressCurrentFolder()" title="ضغط محتويات هذا المجلد إلى ملف ZIP على السيرفر">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                            <span>ضغط المجلد</span>
+                        </button>
                         <button class="btn btn-secondary" onclick="openNewFolderModal()">
                             <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
                             <span>مجلد جديد</span>
@@ -2091,6 +2499,116 @@
                     </button>
                 </div>
 
+            </section>
+
+            <!-- =================================================================
+                 3. SMART MEDIA TIMELINE VIEW (معرض الصور الذكي بالأشهر والسنوات)
+                 ================================================================= -->
+            <section id="timelineView" class="view-section">
+                <!-- Timeline Header -->
+                <div class="content-header" style="margin-bottom: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div class="brand-logo-badge" style="background: linear-gradient(135deg, #ec4899, #f43f5e);">
+                            <svg class="icon icon-lg" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        </div>
+                        <div>
+                            <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--text-main);">معرض الصور والذكريات</h2>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">عرض زمني ذكي للصور والفيديوهات المرفوعة حسب الأشهر والسنوات</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.6rem;">
+                        <span class="status-badge" id="timelineCountBadge" style="background: #fdf2f8; color: #db2777;">
+                            0 عنصر وسائط
+                        </span>
+                        <button class="btn btn-secondary btn-icon-only" onclick="loadTimeline()" title="تحديث المعرض">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Timeline Filters -->
+                <div class="filter-chips" style="margin-bottom: 1.5rem;">
+                    <button class="chip active" id="timelineFilterAll" onclick="setTimelineFilter('all')">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 17 22 12"/></svg>
+                        <span>الكل</span>
+                    </button>
+                    <button class="chip" id="timelineFilterPhotos" onclick="setTimelineFilter('photos')">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        <span>الصور فقط</span>
+                    </button>
+                    <button class="chip" id="timelineFilterVideos" onclick="setTimelineFilter('videos')">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                        <span>الفيديوهات فقط</span>
+                    </button>
+                </div>
+
+                <!-- Timeline Content Container -->
+                <div id="timelineContainer">
+                    <!-- Dynamic timeline month sections injected here -->
+                </div>
+
+                <!-- Empty Timeline State -->
+                <div class="state-container" id="timelineEmptyState" style="display: none;">
+                    <svg class="icon icon-xl" style="color: var(--text-muted);" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    <h4>لا توجد صور أو فيديوهات حتى الآن</h4>
+                    <p style="font-size: 0.88rem;">قم برفع صورك وفيديوهاتك من الهاتف أو الحاسوب لتنظيمها تلقائياً</p>
+                    <button class="btn btn-primary" onclick="triggerFileUpload()" style="margin-top: 0.5rem;">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <span>رفع صور الآن</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- =================================================================
+                 4. SMART RECYCLE BIN VIEW (سلة المحذوفات الذكية مع الاسترجاع)
+                 ================================================================= -->
+            <section id="trashView" class="view-section">
+                <!-- Trash Header -->
+                <div class="content-header" style="margin-bottom: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div class="brand-logo-badge" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+                            <svg class="icon icon-lg" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </div>
+                        <div>
+                            <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--text-main);">سلة المحذوفات (Recycle Bin)</h2>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">الملفات المحذوفة مؤقتاً لحمايتها من الفقدان، يمكنك استرجاعها بضغطة زر</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.6rem;">
+                        <button class="btn btn-secondary" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.3);" onclick="emptyTrashConfirm()">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            <span>إفراغ سلة المحذوفات</span>
+                        </button>
+                        <button class="btn btn-secondary btn-icon-only" onclick="loadTrash()" title="تحديث سلة المحذوفات">
+                            <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Trash Items Table Container -->
+                <div id="trashContainer">
+                    <table class="trash-table" id="trashTable">
+                        <thead>
+                            <tr>
+                                <th>اسم الملف أو المجلد</th>
+                                <th>المسار الأصلي قبل الحذف</th>
+                                <th>الحجم</th>
+                                <th>تاريخ الحذف</th>
+                                <th style="text-align: left;">إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trashTableBody">
+                            <!-- Trashed items injected dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Empty Trash Placeholder -->
+                <div class="state-container" id="trashEmptyState" style="display: none;">
+                    <svg class="icon icon-xl" style="color: var(--text-muted);" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                    <h4>سلة المحذوفات فارغة</h4>
+                    <p style="font-size: 0.88rem;">لا توجد أي ملفات محذوفة في السلة حالياً</p>
+                </div>
             </section>
 
         </main>
@@ -2292,11 +2810,17 @@
         </div>
     </div>
 
-    <!-- 4. Lightbox Fullscreen Modal -->
+    <!-- 4. Enhanced Lightbox Fullscreen Modal -->
     <div class="lightbox-modal" id="lightboxModal">
         <div class="lightbox-topbar">
-            <div class="lightbox-title" id="lightboxTitle">معاينة الملف</div>
+            <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                <span id="lightboxCounter" style="font-size: 0.8rem; background: rgba(255, 255, 255, 0.15); padding: 3px 8px; border-radius: 6px; font-family: var(--font-en);">1 / 1</span>
+                <div class="lightbox-title" id="lightboxTitle">معاينة الملف</div>
+            </div>
             <div class="lightbox-actions">
+                <button class="lightbox-btn" id="lightboxShareBtn" onclick="shareCurrentLightboxFile()" title="مشاركة الملف ورابط التحميل">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                </button>
                 <a class="lightbox-btn" id="lightboxDownloadBtn" download title="تنزيل إلى جهازك">
                     <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 </a>
@@ -2307,6 +2831,131 @@
         </div>
         <div class="lightbox-canvas" id="lightboxBody">
             <!-- Dynamic Image or Video Injected Here -->
+        </div>
+        <!-- Lightbox Navigation Arrows -->
+        <button onclick="navigateLightbox(-1)" title="السابق (السهم الأيمن)" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.2); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10;">
+            <svg class="icon" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <button onclick="navigateLightbox(1)" title="التالي (السهم الأيسر)" style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.2); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10;">
+            <svg class="icon" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+    </div>
+
+    <!-- 5. Shareable Link & QR Code Modal -->
+    <div class="modal" id="shareModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <svg class="icon" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                    <span>مشاركة الملف عبر الشبكة</span>
+                </div>
+                <button class="modal-close" onclick="closeShareModal()">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-body); border-radius: var(--radius-md); border: 1px solid var(--border);">
+                <span id="shareFileIcon" style="width: 32px; height: 32px; display: inline-flex;"></span>
+                <div style="min-width: 0; flex: 1;">
+                    <div id="shareFileName" style="font-weight: 700; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">--</div>
+                    <div id="shareFileSize" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-en);">--</div>
+                </div>
+            </div>
+            <div class="qr-box">
+                <img id="shareQrImg" src="" alt="Share QR Code">
+            </div>
+            <div>
+                <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.35rem; display: block;">رابط التحميل المباشر للأجهزة المتصلة:</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="shareUrlInput" class="search-input" readonly style="direction: ltr; font-family: var(--font-en); font-size: 0.85rem;" onclick="this.select()">
+                    <button class="btn btn-primary" onclick="copyShareUrl()" id="btnCopyShare">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        <span>نسخ</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. In-Browser PDF Document Viewer Modal -->
+    <div class="modal" id="pdfModal">
+        <div class="modal-card modal-card-large">
+            <div class="modal-header">
+                <div class="modal-title" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70vw;">
+                    <svg class="icon" style="color: #ef4444;" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    <span id="pdfModalTitle">عارض ملفات PDF</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <a id="pdfDownloadLink" class="btn btn-secondary btn-icon-only" download title="تنزيل الملف">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    </a>
+                    <button class="modal-close" onclick="closePdfModal()">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+            </div>
+            <iframe id="pdfFrame" class="pdf-viewer-iframe" src="about:blank"></iframe>
+        </div>
+    </div>
+
+    <!-- 7. In-Browser Code & Text Document Viewer and Editor Modal -->
+    <div class="modal" id="codeModal">
+        <div class="modal-card modal-card-large">
+            <div class="modal-header">
+                <div class="modal-title" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw;">
+                    <svg class="icon" style="color: var(--primary);" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                    <span id="codeModalTitle">محرر ومستعرض الأكواد</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <button class="btn btn-secondary" onclick="copyCodeContent()" id="btnCopyCode" title="نسخ المحتوى">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        <span>نسخ</span>
+                    </button>
+                    <button class="btn btn-primary" onclick="saveCodeContent()" id="btnSaveCode" title="حفظ التعديلات على السيرفر">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        <span>حفظ التعديلات</span>
+                    </button>
+                    <button class="modal-close" onclick="closeCodeModal()">
+                        <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="code-editor-box">
+                <textarea id="codeTextarea" class="code-textarea" spellcheck="false"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- 8. Floating Mini Background Audio Player -->
+    <div class="floating-audio-player" id="floatingAudioPlayer">
+        <div class="audio-player-top">
+            <div class="audio-track-info">
+                <div class="audio-disc-thumb" id="audioDiscThumb">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                </div>
+                <div class="audio-meta">
+                    <div class="audio-title" id="audioTrackTitle">لا يوجد ملف صوتي قيد التشغيل</div>
+                    <div class="audio-sub" id="audioTrackSub">مشغل الموسيقى العائم</div>
+                </div>
+            </div>
+            <div class="audio-controls">
+                <button class="audio-btn" onclick="prevAudioTrack()" title="السابق">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+                </button>
+                <button class="audio-btn audio-btn-play" onclick="togglePlayPauseAudio()" id="audioPlayPauseBtn" title="تشغيل / إيقاف">
+                    <svg class="icon icon-sm" id="audioPlayIcon" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                </button>
+                <button class="audio-btn" onclick="nextAudioTrack()" title="التالي">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                </button>
+                <button class="audio-btn" onclick="closeAudioPlayer()" title="إغلاق المشغل">
+                    <svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+        </div>
+        <div class="audio-progress-row">
+            <span id="audioCurrentTime">00:00</span>
+            <input type="range" class="audio-seek-bar" id="audioSeekBar" value="0" min="0" max="100" oninput="seekAudio(this.value)">
+            <span id="audioDuration">00:00</span>
         </div>
     </div>
 
@@ -2369,14 +3018,29 @@
         let appSettings = loadSavedSettings();
 
         // State
-        let activeTab = 'dashboard'; // 'dashboard' | 'files'
+        let activeTab = 'dashboard'; // 'dashboard' | 'files' | 'timeline' | 'trash'
         let currentPath = appSettings.defaultPath || '/DATA';
         let allItems = [];
         let filteredItems = [];
         let activeFilter = 'all';
-        let viewMode = 'grid'; // 'grid' | 'list'
+        let viewMode = localStorage.getItem('casaos_view_mode') || 'grid'; // 'grid' | 'list'
+        let currentSort = 'name_asc';
         let lastDisksData = [];
         let lastNetStats = { recv: 0, sent: 0, time: 0 };
+
+        // Audio Player Engine State
+        let audioPlayer = new Audio();
+        let audioPlaylist = [];
+        let currentAudioIndex = -1;
+        let isAudioPlaying = false;
+
+        // Enhanced Lightbox State
+        let mediaPlaylist = [];
+        let currentMediaIndex = -1;
+
+        // Current Trashed & Share State
+        let trashedItemsList = [];
+        let currentShareItem = { path: '', name: '', size: 0 };
 
         // SVG Icon Presets
         const ICONS = {
@@ -2396,9 +3060,27 @@
         document.addEventListener('DOMContentLoaded', () => {
             setupDragAndDrop();
             applySettingsToUI();
-            loadLiveMetrics();
             setupPhoneQRCode();
-            setInterval(loadLiveMetrics, 2000);
+
+            const hash = window.location.hash.replace('#', '');
+            if (['dashboard', 'files', 'timeline', 'trash'].includes(hash)) {
+                switchMainTab(hash);
+            } else {
+                loadLiveMetrics();
+            }
+
+            window.addEventListener('hashchange', () => {
+                const h = window.location.hash.replace('#', '');
+                if (['dashboard', 'files', 'timeline', 'trash'].includes(h) && h !== activeTab) {
+                    switchMainTab(h);
+                }
+            });
+
+            setInterval(() => {
+                if (activeTab === 'dashboard') {
+                    loadLiveMetrics();
+                }
+            }, 2000);
         });
 
         // Settings Manager
@@ -2507,33 +3189,57 @@
             applySettingsToUI();
         }
 
-        // View Switching (Dashboard vs Files)
+        // View Switching (Dashboard, Files, Timeline, Trash)
         function switchMainTab(tab) {
             activeTab = tab;
+            try {
+                if (window.location.hash !== '#' + tab) {
+                    history.replaceState(null, '', '#' + tab);
+                }
+            } catch (e) {}
 
+            // Header tabs
             document.getElementById('topTabDashboard')?.classList.toggle('active', tab === 'dashboard');
             document.getElementById('topTabFiles')?.classList.toggle('active', tab === 'files');
-            document.getElementById('topTabPhotos')?.classList.toggle('active', false);
+            document.getElementById('topTabTimeline')?.classList.toggle('active', tab === 'timeline');
+            document.getElementById('topTabTrash')?.classList.toggle('active', tab === 'trash');
 
+            // Mobile nav
             document.getElementById('mobTabDashboard')?.classList.toggle('active', tab === 'dashboard');
             document.getElementById('mobTabFiles')?.classList.toggle('active', tab === 'files');
-            document.getElementById('mobTabPhotos')?.classList.toggle('active', false);
+            document.getElementById('mobTabPhotos')?.classList.toggle('active', tab === 'timeline');
 
-            document.getElementById('sideNavDashboard')?.classList.toggle('active', tab === 'dashboard');
+            // Sidebar nav
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            if (tab === 'dashboard') document.getElementById('sideNavDashboard')?.classList.add('active');
+            if (tab === 'timeline') document.getElementById('sideNavTimeline')?.classList.add('active');
+            if (tab === 'trash') document.getElementById('sideNavTrash')?.classList.add('active');
+            if (tab === 'files') document.getElementById('navAllFiles')?.classList.add('active');
 
+            // Sections
             const dashSection = document.getElementById('dashboardView');
             const filesSection = document.getElementById('filesView');
+            const timelineSection = document.getElementById('timelineView');
+            const trashSection = document.getElementById('trashView');
             const headerNewFolder = document.getElementById('headerNewFolderBtn');
 
+            dashSection?.classList.toggle('active', tab === 'dashboard');
+            filesSection?.classList.toggle('active', tab === 'files');
+            timelineSection?.classList.toggle('active', tab === 'timeline');
+            trashSection?.classList.toggle('active', tab === 'trash');
+
+            if (headerNewFolder) {
+                headerNewFolder.style.display = (tab === 'files') ? 'inline-flex' : 'none';
+            }
+
             if (tab === 'dashboard') {
-                dashSection.classList.add('active');
-                filesSection.classList.remove('active');
-                if (headerNewFolder) headerNewFolder.style.display = 'none';
-            } else {
-                dashSection.classList.remove('active');
-                filesSection.classList.add('active');
-                if (headerNewFolder) headerNewFolder.style.display = 'inline-flex';
+                loadLiveMetrics();
+            } else if (tab === 'files') {
                 loadCurrentFolder();
+            } else if (tab === 'timeline') {
+                loadTimeline();
+            } else if (tab === 'trash') {
+                loadTrash();
             }
         }
 
@@ -2716,10 +3422,59 @@
             renderItems();
         }
 
+        function isPdf(name) {
+            return /\.pdf$/i.test(name);
+        }
+        function isTextOrCode(name) {
+            return /\.(txt|md|json|js|ts|jsx|tsx|html|css|py|cs|go|java|c|cpp|h|sql|sh|bat|ps1|yml|yaml|xml|ini|env|log|config)$/i.test(name);
+        }
+
+        function changeSort(val) {
+            currentSort = val;
+            applyCurrentSort();
+            renderItems();
+        }
+
+        function applyCurrentSort() {
+            if (!filteredItems || filteredItems.length === 0) return;
+            filteredItems.sort((a, b) => {
+                if (currentSort === 'type') {
+                    if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+                    return a.name.localeCompare(b.name, 'ar', { sensitivity: 'base' });
+                }
+                if (currentSort === 'name_asc') {
+                    if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+                    return a.name.localeCompare(b.name, 'ar', { sensitivity: 'base' });
+                }
+                if (currentSort === 'name_desc') {
+                    if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+                    return b.name.localeCompare(a.name, 'ar', { sensitivity: 'base' });
+                }
+                if (currentSort === 'size_desc') {
+                    return (b.size || 0) - (a.size || 0);
+                }
+                if (currentSort === 'size_asc') {
+                    return (a.size || 0) - (b.size || 0);
+                }
+                if (currentSort === 'date_desc') {
+                    const da = new Date(a.modified || a.date || 0);
+                    const db = new Date(b.modified || b.date || 0);
+                    return db - da;
+                }
+                if (currentSort === 'date_asc') {
+                    const da = new Date(a.modified || a.date || 0);
+                    const db = new Date(b.modified || b.date || 0);
+                    return da - db;
+                }
+                return 0;
+            });
+        }
+
         function setViewMode(mode) {
             viewMode = mode;
-            document.getElementById('btnGridView').classList.toggle('active', mode === 'grid');
-            document.getElementById('btnListView').classList.toggle('active', mode === 'list');
+            localStorage.setItem('casaos_view_mode', mode);
+            document.getElementById('btnGridView')?.classList.toggle('active', mode === 'grid');
+            document.getElementById('btnListView')?.classList.toggle('active', mode === 'list');
             renderItems();
         }
 
@@ -2734,6 +3489,8 @@
             }
             empty.style.display = 'none';
 
+            applyCurrentSort();
+
             if (viewMode === 'grid') {
                 renderGridView(container);
             } else {
@@ -2743,10 +3500,12 @@
 
         function renderGridView(container) {
             let html = '<div class="items-grid">';
-            filteredItems.forEach(item => {
+            filteredItems.forEach((item, index) => {
                 const isDir = item.is_dir;
                 const path = item.path || (currentPath.endsWith('/') || currentPath.endsWith('\\') ? currentPath + item.name : currentPath + '/' + item.name);
                 const fileUrl = `/v1/file?path=${encodeURIComponent(path)}`;
+                const safePath = path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const safeName = item.name.replace(/'/g, "\\'");
 
                 let previewHtml = '';
                 if (isDir) {
@@ -2761,18 +3520,57 @@
                     previewHtml = ICONS.archive;
                 } else if (isMusic(item.name)) {
                     previewHtml = ICONS.music;
+                } else if (isPdf(item.name)) {
+                    previewHtml = `<svg class="icon item-icon-file" style="color: #ef4444;" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
+                } else if (isTextOrCode(item.name)) {
+                    previewHtml = `<svg class="icon item-icon-file" style="color: #2563eb;" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`;
                 } else if (isDoc(item.name)) {
                     previewHtml = ICONS.document;
                 } else {
                     previewHtml = ICONS.generic;
                 }
 
-                const clickAction = isDir 
-                    ? `navigateToFolder('${path.replace(/\\/g, '\\\\')}')` 
-                    : (isPhoto(item.name) ? `openLightboxImage('${path.replace(/\\/g, '\\\\')}')` : (isVideo(item.name) ? `openLightboxVideo('${path.replace(/\\/g, '\\\\')}')` : `window.open('${fileUrl}')`));
+                // Primary click action
+                let clickAction = '';
+                if (isDir) {
+                    clickAction = `navigateToFolder('${safePath}')`;
+                } else if (isPhoto(item.name)) {
+                    clickAction = `openEnhancedLightbox('${safePath}', '${safeName}', ${index})`;
+                } else if (isVideo(item.name)) {
+                    clickAction = `openLightboxVideo('${safePath}')`;
+                } else if (isMusic(item.name)) {
+                    clickAction = `playAudioTrack('${safePath}', '${safeName}', ${index})`;
+                } else if (isPdf(item.name)) {
+                    clickAction = `openPdfModal('${safePath}', '${safeName}')`;
+                } else if (isTextOrCode(item.name)) {
+                    clickAction = `openCodeModal('${safePath}', '${safeName}')`;
+                } else {
+                    clickAction = `window.open('${fileUrl}')`;
+                }
+
+                // Quick hover actions buttons
+                let extraActionBtn = '';
+                if (isZip(item.name)) {
+                    extraActionBtn = `<button class="item-action-btn" onclick="event.stopPropagation(); extractZip('${safePath}')" title="📦 فك الضغط على السيرفر"><svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></button>`;
+                } else if (isMusic(item.name)) {
+                    extraActionBtn = `<button class="item-action-btn" onclick="event.stopPropagation(); playAudioTrack('${safePath}', '${safeName}', ${index})" title="🎵 تشغيل بالمشغل العائم"><svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>`;
+                } else if (isPdf(item.name)) {
+                    extraActionBtn = `<button class="item-action-btn" onclick="event.stopPropagation(); openPdfModal('${safePath}', '${safeName}')" title="👁️ استعراض PDF"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`;
+                } else if (isTextOrCode(item.name)) {
+                    extraActionBtn = `<button class="item-action-btn" onclick="event.stopPropagation(); openCodeModal('${safePath}', '${safeName}')" title="📝 عرض وتعديل الكود"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>`;
+                }
 
                 html += `
                     <div class="item-card" onclick="${clickAction}">
+                        <div class="item-quick-actions">
+                            ${extraActionBtn}
+                            <button class="item-action-btn" onclick="event.stopPropagation(); openShareModal('${safePath}', '${safeName}', ${item.size || 0})" title="🔗 مشاركة الرابط و QR">
+                                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                            </button>
+                            <button class="item-action-btn danger" onclick="event.stopPropagation(); moveToTrash('${safePath}')" title="🗑️ نقل إلى سلة المحذوفات">
+                                <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
+                        </div>
                         <div class="item-preview">
                             ${previewHtml}
                         </div>
@@ -2797,19 +3595,37 @@
                         <div>الاسم</div>
                         <div>الحجم</div>
                         <div>تاريخ التعديل</div>
-                        <div style="text-align: left;">إجراءات</div>
+                        <div style="text-align: left;">إجراءات سريعة</div>
                     </div>
             `;
 
-            filteredItems.forEach(item => {
+            filteredItems.forEach((item, index) => {
                 const isDir = item.is_dir;
                 const path = item.path || (currentPath.endsWith('/') || currentPath.endsWith('\\') ? currentPath + item.name : currentPath + '/' + item.name);
                 const fileUrl = `/v1/file?path=${encodeURIComponent(path)}`;
+                const safePath = path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                const safeName = item.name.replace(/'/g, "\\'");
 
-                const icon = isDir ? ICONS.folder : (isPhoto(item.name) ? ICONS.image : (isVideo(item.name) ? ICONS.video : (isApp(item.name) ? (isApk(item.name) ? ICONS.apk : ICONS.app) : (isZip(item.name) ? ICONS.archive : (isMusic(item.name) ? ICONS.music : ICONS.generic)))));
-                const clickAction = isDir 
-                    ? `navigateToFolder('${path.replace(/\\/g, '\\\\')}')` 
-                    : (isPhoto(item.name) ? `openLightboxImage('${path.replace(/\\/g, '\\\\')}')` : (isVideo(item.name) ? `openLightboxVideo('${path.replace(/\\/g, '\\\\')}')` : `window.open('${fileUrl}')`));
+                let icon = isDir ? ICONS.folder : (isPhoto(item.name) ? ICONS.image : (isVideo(item.name) ? ICONS.video : (isApp(item.name) ? (isApk(item.name) ? ICONS.apk : ICONS.app) : (isZip(item.name) ? ICONS.archive : (isMusic(item.name) ? ICONS.music : ICONS.generic)))));
+                if (isPdf(item.name)) icon = `<svg class="icon" style="color: #ef4444;" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+                if (isTextOrCode(item.name)) icon = `<svg class="icon" style="color: #2563eb;" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`;
+
+                let clickAction = '';
+                if (isDir) {
+                    clickAction = `navigateToFolder('${safePath}')`;
+                } else if (isPhoto(item.name)) {
+                    clickAction = `openEnhancedLightbox('${safePath}', '${safeName}', ${index})`;
+                } else if (isVideo(item.name)) {
+                    clickAction = `openLightboxVideo('${safePath}')`;
+                } else if (isMusic(item.name)) {
+                    clickAction = `playAudioTrack('${safePath}', '${safeName}', ${index})`;
+                } else if (isPdf(item.name)) {
+                    clickAction = `openPdfModal('${safePath}', '${safeName}')`;
+                } else if (isTextOrCode(item.name)) {
+                    clickAction = `openCodeModal('${safePath}', '${safeName}')`;
+                } else {
+                    clickAction = `window.open('${fileUrl}')`;
+                }
 
                 html += `
                     <div class="list-row" onclick="${clickAction}">
@@ -2819,10 +3635,17 @@
                         </div>
                         <div class="list-meta-col">${isDir ? '--' : formatBytes(item.size)}</div>
                         <div class="list-meta-col">${formatDate(item.modified || item.date)}</div>
-                        <div style="text-align: left;">
+                        <div style="text-align: left; display: flex; align-items: center; justify-content: flex-end; gap: 0.35rem;">
+                            ${isZip(item.name) ? `<button onclick="event.stopPropagation(); extractZip('${safePath}')" class="btn btn-secondary btn-icon-only" style="width: 30px; height: 30px;" title="فك الضغط"><svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></button>` : ''}
+                            <button onclick="event.stopPropagation(); openShareModal('${safePath}', '${safeName}', ${item.size || 0})" class="btn btn-secondary btn-icon-only" style="width: 30px; height: 30px;" title="مشاركة">
+                                <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                            </button>
                             <a href="${fileUrl}" download onclick="event.stopPropagation();" class="btn btn-secondary btn-icon-only" style="width: 30px; height: 30px;" title="تنزيل">
                                 <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                             </a>
+                            <button onclick="event.stopPropagation(); moveToTrash('${safePath}')" class="btn btn-secondary btn-icon-only" style="width: 30px; height: 30px; color: var(--danger);" title="حذف">
+                                <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
                         </div>
                     </div>
                 `;
@@ -3216,18 +4039,35 @@
             });
         }
 
-        // Lightbox
-        function openLightboxImage(path) {
+        // =========================================================================
+        // Enhanced Lightbox & Media Navigation
+        // =========================================================================
+        function openEnhancedLightbox(path, name, index = -1) {
+            currentMediaIndex = index;
             const modal = document.getElementById('lightboxModal');
             const body = document.getElementById('lightboxBody');
             const title = document.getElementById('lightboxTitle');
             const download = document.getElementById('lightboxDownloadBtn');
+            const counter = document.getElementById('lightboxCounter');
 
-            title.innerText = path.split(/[/\\]+/).pop();
+            title.innerText = name || path.split(/[/\\]+/).pop();
             const url = `/v1/file?path=${encodeURIComponent(path)}`;
             download.href = url;
+            currentShareItem = { path: path, name: title.innerText, size: 0 };
+
+            if (mediaPlaylist && mediaPlaylist.length > 0 && index >= 0) {
+                counter.innerText = `${index + 1} / ${mediaPlaylist.length}`;
+                counter.style.display = 'inline-block';
+            } else {
+                counter.style.display = 'none';
+            }
+
             body.innerHTML = `<img src="${url}" alt="Preview">`;
             modal.classList.add('active');
+        }
+
+        function openLightboxImage(path) {
+            openEnhancedLightbox(path, path.split(/[/\\]+/).pop());
         }
 
         function openLightboxVideo(path) {
@@ -3235,12 +4075,35 @@
             const body = document.getElementById('lightboxBody');
             const title = document.getElementById('lightboxTitle');
             const download = document.getElementById('lightboxDownloadBtn');
+            const counter = document.getElementById('lightboxCounter');
 
             title.innerText = path.split(/[/\\]+/).pop();
             const url = `/v1/file?path=${encodeURIComponent(path)}`;
             download.href = url;
+            currentShareItem = { path: path, name: title.innerText, size: 0 };
+            counter.style.display = 'none';
+
             body.innerHTML = `<video controls autoplay><source src="${url}" type="video/mp4">المتصفح لا يدعم تشغيل هذا الفيديو</video>`;
             modal.classList.add('active');
+        }
+
+        function navigateLightbox(dir) {
+            if (!mediaPlaylist || mediaPlaylist.length === 0) return;
+            currentMediaIndex += dir;
+            if (currentMediaIndex < 0) currentMediaIndex = mediaPlaylist.length - 1;
+            if (currentMediaIndex >= mediaPlaylist.length) currentMediaIndex = 0;
+            const item = mediaPlaylist[currentMediaIndex];
+            if (item.is_video) {
+                openLightboxVideo(item.path);
+            } else {
+                openEnhancedLightbox(item.path, item.name, currentMediaIndex);
+            }
+        }
+
+        function shareCurrentLightboxFile() {
+            if (currentShareItem && currentShareItem.path) {
+                openShareModal(currentShareItem.path, currentShareItem.name, 0);
+            }
         }
 
         function closeLightbox() {
@@ -3248,6 +4111,538 @@
             const body = document.getElementById('lightboxBody');
             body.innerHTML = '';
             modal.classList.remove('active');
+        }
+
+        window.addEventListener('keydown', (e) => {
+            const lb = document.getElementById('lightboxModal');
+            if (lb && lb.classList.contains('active')) {
+                if (e.key === 'ArrowLeft') navigateLightbox(1);
+                if (e.key === 'ArrowRight') navigateLightbox(-1);
+                if (e.key === 'Escape') closeLightbox();
+            }
+            if (e.key === 'Escape') {
+                closeShareModal();
+                closePdfModal();
+                closeCodeModal();
+            }
+        });
+
+        // =========================================================================
+        // Floating Mini Background Audio Player Engine
+        // =========================================================================
+        function playAudioTrack(path, name, index = -1) {
+            audioPlaylist = filteredItems.filter(i => isMusic(i.name)).map(i => ({
+                path: i.path || (currentPath.endsWith('/') || currentPath.endsWith('\\') ? currentPath + i.name : currentPath + '/' + i.name),
+                name: i.name
+            }));
+
+            if (index >= 0) {
+                currentAudioIndex = audioPlaylist.findIndex(t => t.path === path);
+            }
+
+            const playerEl = document.getElementById('floatingAudioPlayer');
+            const titleEl = document.getElementById('audioTrackTitle');
+            const subEl = document.getElementById('audioTrackSub');
+            const url = `/v1/file?path=${encodeURIComponent(path)}`;
+
+            const cleanName = name || path.split(/[/\\]+/).pop();
+            titleEl.innerText = cleanName;
+            subEl.innerText = `ملف صوتي • ${audioPlaylist.length} مقاطع في القائمة`;
+
+            audioPlayer.src = url;
+            audioPlayer.play().then(() => {
+                isAudioPlaying = true;
+                updateAudioPlayerUI();
+            }).catch(e => console.log('Autoplay handled', e));
+
+            playerEl.classList.add('active');
+        }
+
+        function togglePlayPauseAudio() {
+            if (audioPlayer.paused) {
+                audioPlayer.play();
+                isAudioPlaying = true;
+            } else {
+                audioPlayer.pause();
+                isAudioPlaying = false;
+            }
+            updateAudioPlayerUI();
+        }
+
+        function nextAudioTrack() {
+            if (audioPlaylist.length <= 1) return;
+            currentAudioIndex = (currentAudioIndex + 1) % audioPlaylist.length;
+            const nextTrack = audioPlaylist[currentAudioIndex];
+            playAudioTrack(nextTrack.path, nextTrack.name, currentAudioIndex);
+        }
+
+        function prevAudioTrack() {
+            if (audioPlaylist.length <= 1) return;
+            currentAudioIndex = (currentAudioIndex - 1 + audioPlaylist.length) % audioPlaylist.length;
+            const prevTrack = audioPlaylist[currentAudioIndex];
+            playAudioTrack(prevTrack.path, prevTrack.name, currentAudioIndex);
+        }
+
+        function seekAudio(val) {
+            if (audioPlayer.duration) {
+                audioPlayer.currentTime = (val / 100) * audioPlayer.duration;
+            }
+        }
+
+        function closeAudioPlayer() {
+            audioPlayer.pause();
+            isAudioPlaying = false;
+            document.getElementById('floatingAudioPlayer').classList.remove('active');
+            updateAudioPlayerUI();
+        }
+
+        function updateAudioPlayerUI() {
+            const discEl = document.getElementById('audioDiscThumb');
+            const iconEl = document.getElementById('audioPlayIcon');
+            if (isAudioPlaying && !audioPlayer.paused) {
+                discEl.classList.add('spinning');
+                iconEl.innerHTML = `<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>`;
+            } else {
+                discEl.classList.remove('spinning');
+                iconEl.innerHTML = `<polygon points="5 3 19 12 5 21 5 3"/>`;
+            }
+        }
+
+        audioPlayer.addEventListener('timeupdate', () => {
+            const curr = audioPlayer.currentTime || 0;
+            const dur = audioPlayer.duration || 0;
+            document.getElementById('audioCurrentTime').innerText = formatAudioTime(curr);
+            document.getElementById('audioDuration').innerText = formatAudioTime(dur);
+            if (dur > 0) {
+                document.getElementById('audioSeekBar').value = (curr / dur) * 100;
+            }
+        });
+
+        audioPlayer.addEventListener('ended', () => {
+            nextAudioTrack();
+        });
+
+        function formatAudioTime(secs) {
+            const m = Math.floor(secs / 60);
+            const s = Math.floor(secs % 60);
+            return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        // =========================================================================
+        // Smart Timeline Gallery Engine (Google Photos Style)
+        // =========================================================================
+        let activeTimelineFilter = 'all';
+
+        async function loadTimeline() {
+            const container = document.getElementById('timelineContainer');
+            const empty = document.getElementById('timelineEmptyState');
+            container.innerHTML = `
+                <div class="state-container">
+                    <div class="storage-fill" style="width: 36px; height: 36px; border-radius: 50%; border: 3px solid #e2e8f0; border-top-color: var(--primary); animation: spin 0.8s linear infinite;"></div>
+                    <p style="font-size: 0.9rem;">جارٍ فحص وتنظيم معرض الصور والذكريات...</p>
+                </div>
+            `;
+            empty.style.display = 'none';
+
+            try {
+                const res = await fetch(`/api/media/timeline?type=${activeTimelineFilter}`);
+                const data = await res.json();
+
+                if (!data.timeline || data.timeline.length === 0) {
+                    container.innerHTML = '';
+                    empty.style.display = 'flex';
+                    document.getElementById('timelineCountBadge').innerText = '0 عنصر';
+                    return;
+                }
+
+                document.getElementById('timelineCountBadge').innerText = `${data.total} صورة وفيديو`;
+
+                mediaPlaylist = [];
+                let totalIdx = 0;
+
+                let html = '';
+                data.timeline.forEach(group => {
+                    html += `
+                        <div class="timeline-section">
+                            <div class="timeline-month-header">
+                                <div class="timeline-month-title">
+                                    <svg class="icon icon-sm" style="color: #ec4899;" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                    <span>${group.period}</span>
+                                </div>
+                                <span class="timeline-month-badge">${group.items.length} عنصر</span>
+                            </div>
+                            <div class="timeline-grid">
+                    `;
+
+                    group.items.forEach(item => {
+                        const itemIdx = totalIdx++;
+                        mediaPlaylist.push(item);
+                        const fileUrl = `/v1/file?path=${encodeURIComponent(item.path)}`;
+                        const safePath = item.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                        const safeName = item.name.replace(/'/g, "\\'");
+
+                        const clickAction = item.is_video 
+                            ? `openLightboxVideo('${safePath}')` 
+                            : `openEnhancedLightbox('${safePath}', '${safeName}', ${itemIdx})`;
+
+                        const mediaPreview = item.is_video 
+                            ? `<video src="${fileUrl}#t=0.5" preload="metadata" muted playsinline style="width:100%; height:100%; object-fit:cover; pointer-events:none; display:block;"></video>`
+                            : `<img src="${fileUrl}" loading="lazy" alt="${item.name}">`;
+
+                        html += `
+                            <div class="timeline-item" onclick="${clickAction}">
+                                ${mediaPreview}
+                                ${item.is_video ? `<div class="timeline-video-badge"><svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> فيديو</div>` : ''}
+                                <div class="timeline-item-overlay">
+                                    <div class="timeline-item-name" title="${item.name}">${item.name}</div>
+                                    <div style="font-size: 0.72rem; opacity: 0.85; font-family: var(--font-en);">${formatBytes(item.size)} • ${item.date_str}</div>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+            } catch (err) {
+                console.error("Timeline load error", err);
+                container.innerHTML = `<div class="state-container" style="color: var(--danger);"><p>تعذر تحميل المعرض الزمني</p></div>`;
+            }
+        }
+
+        function setTimelineFilter(type) {
+            activeTimelineFilter = type;
+            document.querySelectorAll('#timelineView .chip').forEach(c => c.classList.remove('active'));
+            if (type === 'all') document.getElementById('timelineFilterAll')?.classList.add('active');
+            if (type === 'photos') document.getElementById('timelineFilterPhotos')?.classList.add('active');
+            if (type === 'videos') document.getElementById('timelineFilterVideos')?.classList.add('active');
+            loadTimeline();
+        }
+
+        // =========================================================================
+        // Smart Recycle Bin Engine (Trash with Restore)
+        // =========================================================================
+        async function loadTrash() {
+            const table = document.getElementById('trashTable');
+            const tbody = document.getElementById('trashTableBody');
+            const empty = document.getElementById('trashEmptyState');
+            const badge = document.getElementById('trashCountBadge');
+
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem;">جارٍ تحميل سلة المحذوفات...</td></tr>`;
+            empty.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/trash');
+                const data = await res.json();
+                trashedItemsList = data.items || [];
+
+                if (badge) {
+                    badge.innerText = trashedItemsList.length;
+                    badge.style.display = trashedItemsList.length > 0 ? 'inline-flex' : 'none';
+                }
+
+                if (!trashedItemsList || trashedItemsList.length === 0) {
+                    table.style.display = 'none';
+                    empty.style.display = 'flex';
+                    return;
+                }
+
+                table.style.display = 'table';
+                empty.style.display = 'none';
+
+                let html = '';
+                trashedItemsList.forEach(item => {
+                    const icon = item.is_dir ? ICONS.folder : ICONS.generic;
+                    const dateFormatted = new Date(item.deleted_at).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' });
+                    html += `
+                        <tr>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+                                    <span style="width: 22px; height: 22px; display: inline-flex;">${icon}</span>
+                                    <span>${item.name}</span>
+                                </div>
+                            </td>
+                            <td><span style="font-family: var(--font-en); font-size: 0.8rem; color: var(--text-secondary);">${item.original_path}</span></td>
+                            <td><span style="font-family: var(--font-en);">${item.is_dir ? '--' : formatBytes(item.size)}</span></td>
+                            <td><span style="font-size: 0.8rem; color: var(--text-muted);">${dateFormatted}</span></td>
+                            <td style="text-align: left;">
+                                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem;">
+                                    <button class="btn btn-secondary" style="height: 32px; font-size: 0.8rem; color: var(--success);" onclick="restoreFromTrash('${item.id}')">
+                                        <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                                        <span>استرجاع</span>
+                                    </button>
+                                    <button class="btn btn-secondary" style="height: 32px; font-size: 0.8rem; color: var(--danger);" onclick="deleteTrashItem('${item.id}')">
+                                        <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                        <span>حذف نهائي</span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = html;
+            } catch (err) {
+                console.error("Trash load error", err);
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--danger);">خطأ في جلب بيانات سلة المحذوفات</td></tr>`;
+            }
+        }
+
+        async function moveToTrash(path) {
+            const confirmMsg = `هل تريد نقل "${path.split(/[/\\]+/).pop()}" إلى سلة المحذوفات؟`;
+            if (!confirm(confirmMsg)) return;
+
+            try {
+                const res = await fetch('/api/trash/move', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: path })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    loadCurrentFolder();
+                    loadTrash();
+                } else {
+                    alert('فصل النقل إلى سلة المحذوفات: ' + (data.error || ''));
+                }
+            } catch (err) {
+                alert('خطأ أثناء النقل إلى سلة المحذوفات');
+            }
+        }
+
+        async function restoreFromTrash(id) {
+            try {
+                const res = await fetch('/api/trash/restore', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert('تم استرجاع الملف بنجاح إلى مكانه الأصلي!');
+                    loadTrash();
+                    loadCurrentFolder();
+                } else {
+                    alert('تعذر استرجاع الملف: ' + (data.error || ''));
+                }
+            } catch (err) {
+                alert('خطأ أثناء استرجاع الملف');
+            }
+        }
+
+        async function deleteTrashItem(id) {
+            if (!confirm('هل أنت متأكد من الحذف النهائي؟ لا يمكن استرجاع هذا الملف بعد حذفه!')) return;
+            try {
+                await fetch('/api/trash/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+                loadTrash();
+            } catch (err) {
+                alert('خطأ أثناء الحذف النهائي');
+            }
+        }
+
+        async function emptyTrashConfirm() {
+            if (!confirm('هل أنت متأكد من رغبتك في إفراغ سلة المحذوفات بالكامل وحذف جميع محتوياتها نهائياً؟')) return;
+            try {
+                await fetch('/api/trash/empty', { method: 'POST' });
+                loadTrash();
+                alert('تم إفراغ سلة المحذوفات نهائياً!');
+            } catch (err) {
+                alert('خطأ أثناء إفراغ سلة المحذوفات');
+            }
+        }
+
+        // =========================================================================
+        // In-Cloud Zip & Extract Engine
+        // =========================================================================
+        async function extractZip(path) {
+            const toast = document.getElementById('uploadToast');
+            const statusText = document.getElementById('uploadStatusText');
+            toast.style.display = 'flex';
+            statusText.innerText = `جارٍ فك الضغط على السيرفر: ${path.split(/[/\\]+/).pop()}...`;
+
+            try {
+                const res = await fetch('/api/unzip', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: path })
+                });
+                const data = await res.json();
+                toast.style.display = 'none';
+                if (data.success) {
+                    alert('تم فك الضغط بنجاح في مجلد:\n' + data.dest);
+                    loadCurrentFolder();
+                } else {
+                    alert('فشل فك الضغط: ' + (data.error || ''));
+                }
+            } catch (err) {
+                toast.style.display = 'none';
+                alert('خطأ أثناء فك الضغط على السيرفر');
+            }
+        }
+
+        async function compressCurrentFolder() {
+            const folderName = currentPath.split(/[/\\]+/).filter(Boolean).pop() || 'Archive';
+            const outputZip = (currentPath.endsWith('/') || currentPath.endsWith('\\') ? currentPath : currentPath + '/') + folderName + '.zip';
+
+            const toast = document.getElementById('uploadToast');
+            const statusText = document.getElementById('uploadStatusText');
+            toast.style.display = 'flex';
+            statusText.innerText = `جارٍ ضغط محتويات المجلد إلى ${folderName}.zip...`;
+
+            try {
+                const res = await fetch('/api/zip', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ files: [currentPath], output: outputZip })
+                });
+                const data = await res.json();
+                toast.style.display = 'none';
+                if (data.success) {
+                    alert('تم إنشاء الأرشيف المضغوط بنجاح:\n' + data.output);
+                    loadCurrentFolder();
+                } else {
+                    alert('فشل الضغط: ' + (data.error || ''));
+                }
+            } catch (err) {
+                toast.style.display = 'none';
+                alert('خطأ أثناء عملية الضغط');
+            }
+        }
+
+        // =========================================================================
+        // Document & PDF Viewers and In-Browser Editor Engine
+        // =========================================================================
+        function openPdfModal(path, name) {
+            const modal = document.getElementById('pdfModal');
+            const frame = document.getElementById('pdfFrame');
+            const title = document.getElementById('pdfModalTitle');
+            const dl = document.getElementById('pdfDownloadLink');
+
+            title.innerText = name || path.split(/[/\\]+/).pop();
+            const url = `/v1/file?path=${encodeURIComponent(path)}`;
+            frame.src = url;
+            dl.href = url;
+            modal.classList.add('active');
+        }
+
+        function closePdfModal() {
+            const modal = document.getElementById('pdfModal');
+            document.getElementById('pdfFrame').src = 'about:blank';
+            modal.classList.remove('active');
+        }
+
+        let currentEditingFilePath = '';
+
+        async function openCodeModal(path, name) {
+            currentEditingFilePath = path;
+            const modal = document.getElementById('codeModal');
+            const title = document.getElementById('codeModalTitle');
+            const textarea = document.getElementById('codeTextarea');
+
+            title.innerText = name || path.split(/[/\\]+/).pop();
+            textarea.value = 'جارٍ تحميل محتوى الملف...';
+            modal.classList.add('active');
+
+            try {
+                const res = await fetch(`/v1/file/content?path=${encodeURIComponent(path)}`);
+                const json = await res.json();
+                if (json.success === 200 && json.data !== undefined) {
+                    textarea.value = json.data;
+                } else {
+                    const rawRes = await fetch(`/v1/file?path=${encodeURIComponent(path)}`);
+                    textarea.value = await rawRes.text();
+                }
+            } catch (err) {
+                textarea.value = 'تعذر قراءة محتوى الملف.';
+            }
+        }
+
+        function closeCodeModal() {
+            document.getElementById('codeModal').classList.remove('active');
+            currentEditingFilePath = '';
+        }
+
+        async function saveCodeContent() {
+            if (!currentEditingFilePath) return;
+            const textarea = document.getElementById('codeTextarea');
+            const btn = document.getElementById('btnSaveCode');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span>جارٍ الحفظ...</span>';
+
+            try {
+                const res = await fetch('/v1/file/update', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        path: currentEditingFilePath,
+                        content: textarea.value
+                    })
+                });
+                const json = await res.json();
+                if (json.success === 200) {
+                    btn.innerHTML = '<span>تم الحفظ ✓</span>';
+                    setTimeout(() => { btn.innerHTML = originalText; }, 1500);
+                } else {
+                    alert('فشل حفظ التعديلات: ' + (json.message || ''));
+                    btn.innerHTML = originalText;
+                }
+            } catch (err) {
+                alert('خطأ في الاتصال بالخادم أثناء الحفظ');
+                btn.innerHTML = originalText;
+            }
+        }
+
+        function copyCodeContent() {
+            const textarea = document.getElementById('codeTextarea');
+            textarea.select();
+            navigator.clipboard.writeText(textarea.value);
+            const btn = document.getElementById('btnCopyCode');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span>تم النسخ ✓</span>';
+            setTimeout(() => { btn.innerHTML = originalText; }, 1500);
+        }
+
+        // =========================================================================
+        // Quick Share Modal Engine
+        // =========================================================================
+        function openShareModal(path, name, size = 0) {
+            currentShareItem = { path, name, size };
+            const modal = document.getElementById('shareModal');
+            document.getElementById('shareFileName').innerText = name;
+            document.getElementById('shareFileSize').innerText = size > 0 ? formatBytes(size) : 'رابط مشاركة مباشر';
+
+            let host = window.location.hostname;
+            if (host === 'localhost' || host === '127.0.0.1' || host === '') {
+                host = '192.168.1.35';
+            }
+            const port = window.location.port || '8080';
+            const shareUrl = `http://${host}:${port}/v1/file?path=${encodeURIComponent(path)}`;
+
+            document.getElementById('shareUrlInput').value = shareUrl;
+            document.getElementById('shareQrImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(shareUrl)}`;
+
+            modal.classList.add('active');
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareModal').classList.remove('active');
+        }
+
+        function copyShareUrl() {
+            const input = document.getElementById('shareUrlInput');
+            input.select();
+            navigator.clipboard.writeText(input.value);
+            const btn = document.getElementById('btnCopyShare');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span>تم النسخ ✓</span>';
+            setTimeout(() => { btn.innerHTML = originalText; }, 1500);
         }
 
         // QR Code & Phone Linking
