@@ -2,6 +2,7 @@ package localauth
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -244,5 +245,81 @@ func TestFullAttemptTableEvictsOldestWithoutGlobalLockout(t *testing.T) {
 				t.Fatal("eviction did not bound table or remove oldest host", count, oldestPresent)
 			}
 		})
+	}
+}
+
+func TestSameOriginTrustsForwardedSchemeOnlyFromDirectLoopback(t *testing.T) {
+	for _, entry := range []struct {
+		name, remote, origin string
+		proto                []string
+		tls, crossSite, want bool
+	}{
+		{"direct-http", "192.0.2.1:1234", "http://casa.test", nil, false, false, true},
+		{"direct-tls", "192.0.2.1:1234", "https://casa.test", nil, true, false, true},
+		{"local-proxy-v4", "127.0.0.1:1234", "https://casa.test", []string{"https"}, false, false, true},
+		{"local-proxy-v6", "[::1]:1234", "https://casa.test", []string{"https"}, false, false, true},
+		{"remote-spoof", "192.0.2.1:1234", "https://casa.test", []string{"https"}, false, false, false},
+		{"malformed-remote", "localhost", "https://casa.test", []string{"https"}, false, false, false},
+		{"chained-proto", "127.0.0.1:1234", "https://casa.test", []string{"https,http"}, false, false, false},
+		{"duplicate-proto", "127.0.0.1:1234", "https://casa.test", []string{"https", "http"}, false, false, false},
+		{"different-host", "127.0.0.1:1234", "https://other.test", []string{"https"}, false, false, false},
+		{"different-port", "127.0.0.1:1234", "https://casa.test:1234", []string{"https"}, false, false, false},
+		{"cross-site", "127.0.0.1:1234", "https://casa.test", []string{"https"}, false, true, false},
+		{"origin-with-path", "127.0.0.1:1234", "https://casa.test/path", []string{"https"}, false, false, false},
+	} {
+		t.Run(entry.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "http://casa.test/api/auth/session", nil)
+			req.RemoteAddr = entry.remote
+			req.Header.Set("Origin", entry.origin)
+			req.Header.Set("X-Forwarded-For", "127.0.0.1")
+			for _, proto := range entry.proto {
+				req.Header.Add("X-Forwarded-Proto", proto)
+			}
+			if entry.tls {
+				req.TLS = &tls.ConnectionState{}
+			}
+			if entry.crossSite {
+				req.Header.Set("Sec-Fetch-Site", "cross-site")
+			}
+			if got := sameOrigin(req); got != entry.want {
+				t.Fatal(got, entry.want)
+			}
+		})
+	}
+}
+
+func TestLocalHTTPSProxyLoginAndLogoutSetSecureCookies(t *testing.T) {
+	_, password, handler := testManager(t)
+	body, err := json.Marshal(map[string]string{"password": password})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest("POST", "http://casa.test/api/auth/session", bytes.NewReader(body))
+	req.RemoteAddr = "127.0.0.1:1234"
+	req.Header.Set("Origin", "https://casa.test")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != 200 || len(w.Result().Cookies()) != 1 || !w.Result().Cookies()[0].Secure {
+		t.Fatal(w.Code, w.Header(), w.Body.String())
+	}
+	cookie := w.Result().Cookies()[0]
+	protected := httptest.NewRequest("POST", "http://casa.test/api/settings", nil)
+	protected.RemoteAddr = req.RemoteAddr
+	protected.Header = req.Header.Clone()
+	protected.AddCookie(cookie)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, protected)
+	if w.Code != 204 {
+		t.Fatal("proxy session rejected", w.Code)
+	}
+	logout := httptest.NewRequest("DELETE", "http://casa.test/api/auth/session", nil)
+	logout.RemoteAddr = req.RemoteAddr
+	logout.Header = req.Header.Clone()
+	logout.AddCookie(cookie)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, logout)
+	if w.Code != 200 || len(w.Result().Cookies()) != 1 || !w.Result().Cookies()[0].Secure || w.Result().Cookies()[0].MaxAge != -1 {
+		t.Fatal(w.Code, w.Header())
 	}
 }

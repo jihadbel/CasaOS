@@ -103,13 +103,25 @@ func sameOrigin(r *http.Request) bool {
 	}
 	if origin := r.Header.Get("Origin"); origin != "" {
 		u, err := url.Parse(origin)
-		scheme := "http"
-		if r.TLS != nil {
-			scheme = "https"
-		}
-		return err == nil && strings.EqualFold(u.Host, r.Host) && u.Scheme == scheme
+		return err == nil && u.User == nil && u.Path == "" && u.RawQuery == "" && u.Fragment == "" && strings.EqualFold(u.Host, r.Host) && u.Scheme == requestScheme(r)
 	}
 	return true
+}
+
+// Only a directly connected local proxy may describe the browser's TLS scheme.
+// Keep Host unchanged at the proxy; forwarded host/IP headers are not trusted.
+func requestScheme(r *http.Request) string {
+	if r.TLS != nil {
+		return "https"
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err == nil && net.ParseIP(host).IsLoopback() {
+		values := r.Header.Values("X-Forwarded-Proto")
+		if len(values) == 1 && strings.EqualFold(strings.TrimSpace(values[0]), "https") {
+			return "https"
+		}
+	}
+	return "http"
 }
 
 func (m *Manager) valid(r *http.Request) bool {
@@ -175,7 +187,7 @@ func (m *Manager) session(w http.ResponseWriter, r *http.Request) {
 			delete(m.sessions, c.Value)
 			m.mu.Unlock()
 		}
-		http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: r.TLS != nil, MaxAge: -1})
+		http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: requestScheme(r) == "https", MaxAge: -1})
 		writeJSON(w, 200, map[string]bool{"authenticated": false})
 	case http.MethodPost:
 		// Bound brute-force work and the number of tracked addresses.
@@ -243,7 +255,7 @@ func (m *Manager) session(w http.ResponseWriter, r *http.Request) {
 		delete(m.attempts, host)
 		m.sessions[token] = now.Add(sessionLife)
 		m.mu.Unlock()
-		http.SetCookie(w, &http.Cookie{Name: cookieName, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: r.TLS != nil, MaxAge: int(sessionLife.Seconds())})
+		http.SetCookie(w, &http.Cookie{Name: cookieName, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: requestScheme(r) == "https", MaxAge: int(sessionLife.Seconds())})
 		writeJSON(w, 200, map[string]bool{"authenticated": true})
 	default:
 		writeJSON(w, 405, map[string]string{"error": "Method not allowed"})
