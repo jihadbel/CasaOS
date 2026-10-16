@@ -1,14 +1,16 @@
 package v1
 
 import (
-	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,56 +35,41 @@ func getZerotierCredFiles() (string, string) {
 }
 
 func ZerotierProxy(ctx echo.Context) error {
-	// Read the port number from the file
-	w := ctx.Response().Writer
-	r := ctx.Request()
 	portFile, authFile := getZerotierCredFiles()
+	client := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	return zerotierProxy(ctx, portFile, authFile, client)
+}
+
+func zerotierProxy(ctx echo.Context, portFile, authFile string, client *http.Client) error {
+	w, r := ctx.Response(), ctx.Request()
 	port, err := ioutil.ReadFile(portFile)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "ZeroTier is unavailable").SetInternal(err)
 	}
-
-	// Get the request path and remove "/zt"
-	path := strings.TrimPrefix(r.URL.Path, "/v1/zt")
-	fmt.Println(path)
-
-	// Build the target URL
-	targetURL := fmt.Sprintf("http://localhost:%s%s", strings.TrimSpace(string(port)), path)
-
-	// Create a new request
-	req, err := http.NewRequest(r.Method, targetURL, r.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	number, err := strconv.Atoi(strings.TrimSpace(string(port)))
+	if err != nil || number < 1 || number > 65535 {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "Invalid ZeroTier port")
 	}
-
-	// Add the X-ZT1-AUTH header
 	authToken, err := ioutil.ReadFile(authFile)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if err != nil || strings.TrimSpace(string(authToken)) == "" {
+		return echo.NewHTTPError(http.StatusServiceUnavailable, "ZeroTier credentials are unavailable").SetInternal(err)
 	}
-	req.Header.Set("X-ZT1-AUTH", strings.TrimSpace(string(authToken)))
-
+	target := &url.URL{Scheme: "http", Host: net.JoinHostPort("127.0.0.1", strconv.Itoa(number)), Path: strings.TrimPrefix(r.URL.Path, "/v1/zt"), RawQuery: r.URL.RawQuery}
+	req, err := http.NewRequestWithContext(r.Context(), r.Method, target.String(), r.Body)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Unable to create ZeroTier request").SetInternal(err)
+	}
 	copyHeaders(req.Header, r.Header)
-
-	client := http.Client{}
+	req.Header.Set("X-ZT1-AUTH", strings.TrimSpace(string(authToken)))
 	resp, err := client.Do(req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return echo.NewHTTPError(http.StatusBadGateway, "ZeroTier did not respond").SetInternal(err)
 	}
 	defer resp.Body.Close()
-
 	copyHeaders(w.Header(), resp.Header)
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-
-	// Return the response to the client
 	w.WriteHeader(resp.StatusCode)
-	w.Write(respBody)
-	// TODO
-	return nil
+	_, err = io.Copy(w, resp.Body)
+	return err
 }
 
 func copyHeaders(destination, source http.Header) {
