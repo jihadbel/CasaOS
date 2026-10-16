@@ -16,18 +16,10 @@ if %errorLevel% neq 0 (
     exit /b
 )
 
-set SCRIPT_DIR=%~dp0
-set TASK_NAME=CasaOS_FileServer
-
-echo [*] Registering Windows Scheduled Task to run CasaOS on boot...
-schtasks /create /tn "%TASK_NAME%" /tr "\"%SCRIPT_DIR%start-server.bat\"" /sc onstart /ru SYSTEM /f >nul 2>&1
-
-if %errorlevel% equ 0 (
-    echo [OK] CasaOS File Server has been successfully configured to run on Windows startup!
-    echo [OK] Task Name: %TASK_NAME%
-) else (
-    echo [!] Failed to create scheduled task. Please check permissions.
-)
+:: Configure an absolute executable and working directory without launching a browser.
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0install-service.ps1"
+set INSTALL_RESULT=%errorlevel%
 
 echo.
 pause
+exit /b %INSTALL_RESULT%

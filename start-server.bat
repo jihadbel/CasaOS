@@ -1,4 +1,5 @@
 @echo off
+cd /d "%~dp0"
 chcp 65001 >nul
 title CasaOS Windows File & Photo Server
 
@@ -16,8 +17,7 @@ if not exist "C:\CasaOS\DATA" (
 :: Check if pre-compiled executable exists
 if exist "casaos-server.exe" (
     echo [*] Starting CasaOS Server from binary...
-    start http://localhost:8080
-    casaos-server.exe
+    casaos-server.exe %*
     goto end
 )
 
@@ -25,9 +25,8 @@ if exist "casaos-server.exe" (
 where go >nul 2>&1
 if %errorlevel% equ 0 (
     echo [*] Go environment detected. Building and running CasaOS Server...
-    echo [*] Dashboard will open in your browser at http://localhost:8080
-    start http://localhost:8080
-    go run main.go
+    echo [*] Open the dashboard address printed by the server in your browser.
+    go run . %*
     goto end
 )
 
