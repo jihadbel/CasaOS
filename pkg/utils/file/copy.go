@@ -175,15 +175,34 @@ func copyTree(ctx context.Context, source, target, style string) error {
 	return nil
 }
 
-// MovePathContext never deletes the source or an old destination until the new
-// copy is complete. A failed/cancelled copy leaves both existing paths intact.
+// MovePathContext renames directly when the destination is absent. Replacements
+// and cross-volume moves stage a full copy before removing any existing data.
 func MovePathContext(ctx context.Context, source, parent, style string) error {
 	source, target, err := ValidateCopyTarget(source, parent)
 	if err != nil {
 		return err
 	}
-	if _, err := os.Lstat(target); err == nil && style == "skip" {
-		return nil
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if _, err := os.Lstat(target); err == nil {
+		if style == "skip" {
+			return nil
+		}
+	} else if os.IsNotExist(err) {
+		// Keep the copy path's restrictions on nested links and special files.
+		if err := validateMoveTree(ctx, source); err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := safefs.NoReplace(source, target); err == nil {
+			return nil
+		}
+		// Rename cannot cross volumes. Fall back without removing the source.
+	} else {
+		return err
 	}
 	stage, err := os.MkdirTemp(filepath.Dir(target), ".casaos-move-*")
 	if err != nil {
@@ -233,4 +252,22 @@ func MovePathContext(ctx context.Context, source, parent, style string) error {
 		return err
 	}
 	return os.RemoveAll(source)
+}
+
+func validateMoveTree(ctx context.Context, source string) error {
+	return filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := safefs.NoLinks(path); err != nil {
+			return err
+		}
+		if !entry.IsDir() && !entry.Type().IsRegular() {
+			return fmt.Errorf("not a regular file: %s", path)
+		}
+		return nil
+	})
 }

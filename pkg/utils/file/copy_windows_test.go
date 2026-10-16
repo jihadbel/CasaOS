@@ -35,3 +35,28 @@ func TestMoveKeepsBothTreesWhenNestedFileIsLocked(t *testing.T) {
 		t.Fatalf("staging copy leaked: %v %v", entries, err)
 	}
 }
+
+func TestMoveRenameFailureFallsBackWithoutLosingSource(t *testing.T) {
+	sourceRoot, targetRoot := copyFixture(t)
+	source := filepath.Join(sourceRoot, "item")
+	putCopyFile(t, source, "complete contents")
+	name, err := windows.UTF16PtrFromString(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Allow copying the bytes but deny rename/deletion until the handle closes.
+	handle, err := windows.CreateFile(name, windows.GENERIC_READ, windows.FILE_SHARE_READ, nil, windows.OPEN_EXISTING, windows.FILE_ATTRIBUTE_NORMAL, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer windows.CloseHandle(handle)
+	if err := MovePathContext(context.Background(), source, targetRoot, "overwrite"); err == nil {
+		t.Fatal("source removal unexpectedly succeeded while locked")
+	}
+	requireCopyFile(t, source, "complete contents")
+	requireCopyFile(t, filepath.Join(targetRoot, "item"), "complete contents")
+	entries, err := os.ReadDir(targetRoot)
+	if err != nil || len(entries) != 1 {
+		t.Fatal("fallback leaked its staging directory", entries, err)
+	}
+}

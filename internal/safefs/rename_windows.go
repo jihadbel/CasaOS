@@ -12,5 +12,6 @@ func NoReplace(from, to string) error {
 	if err != nil {
 		return err
 	}
-	return windows.MoveFile(src, dst)
+	// No COPY_ALLOWED: cross-volume moves must use the caller's staged copy.
+	return windows.MoveFileEx(src, dst, 0)
 }

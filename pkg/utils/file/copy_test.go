@@ -142,3 +142,54 @@ func TestInterruptedStreamNeverReplacesDestination(t *testing.T) {
 	}
 	requireCopyFile(t, target, "original")
 }
+
+func TestMoveOnSameVolumePreservesFileIdentity(t *testing.T) {
+	for _, directory := range []bool{false, true} {
+		t.Run(map[bool]string{false: "file", true: "directory"}[directory], func(t *testing.T) {
+			sourceRoot, targetRoot := copyFixture(t)
+			source := filepath.Join(sourceRoot, "item")
+			from, to := source, filepath.Join(targetRoot, "item")
+			if directory {
+				from, to = filepath.Join(from, "nested", "data.txt"), filepath.Join(to, "nested", "data.txt")
+			}
+			putCopyFile(t, from, "move without copying bytes")
+			// File.Stat snapshots the Windows file ID before its path is renamed;
+			// os.Stat may otherwise look up that ID lazily through the old path.
+			handle, err := os.Open(from)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before, err := handle.Stat()
+			handle.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := MovePathContext(context.Background(), source, targetRoot, "overwrite"); err != nil {
+				t.Fatal(err)
+			}
+			after, err := os.Stat(to)
+			if err != nil || !os.SameFile(before, after) {
+				t.Fatal("same-volume move copied the file", err)
+			}
+			requireCopyFile(t, to, "move without copying bytes")
+			if _, err := os.Stat(source); !os.IsNotExist(err) {
+				t.Fatal("source still exists", err)
+			}
+		})
+	}
+}
+
+func TestCancelledMoveToAbsentTargetRetainsSource(t *testing.T) {
+	sourceRoot, targetRoot := copyFixture(t)
+	source := filepath.Join(sourceRoot, "item")
+	putCopyFile(t, source, "original")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := MovePathContext(ctx, source, targetRoot, "overwrite"); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	requireCopyFile(t, source, "original")
+	if _, err := os.Stat(filepath.Join(targetRoot, "item")); !os.IsNotExist(err) {
+		t.Fatal("cancelled rename published a file", err)
+	}
+}
