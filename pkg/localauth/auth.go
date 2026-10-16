@@ -25,10 +25,12 @@ type contextKey struct{}
 
 const cookieName = "casaos_session"
 const sessionLife = 12 * time.Hour
+const maxAttemptHosts = 1024
 
 type attempt struct {
 	count int
 	until time.Time
+	last  time.Time
 }
 type Manager struct {
 	mu       sync.Mutex
@@ -185,14 +187,26 @@ func (m *Manager) session(w http.ResponseWriter, r *http.Request) {
 				delete(m.attempts, key)
 			}
 		}
-		a := m.attempts[host]
-		if a.count >= 10 || len(m.attempts) >= 1024 {
+		a, known := m.attempts[host]
+		if a.count >= 10 {
 			m.mu.Unlock()
 			writeJSON(w, 429, map[string]string{"error": "Try again in 15 minutes"})
 			return
 		}
+		if !known && len(m.attempts) >= maxAttemptHosts {
+			// Bound memory without turning one full table into a global lockout.
+			var oldest string
+			var last time.Time
+			for key, candidate := range m.attempts {
+				if oldest == "" || candidate.last.Before(last) {
+					oldest, last = key, candidate.last
+				}
+			}
+			delete(m.attempts, oldest)
+		}
 		a.count++
 		a.until = now.Add(15 * time.Minute)
+		a.last = now
 		m.attempts[host] = a
 		hash := append([]byte(nil), m.hash...)
 		m.mu.Unlock()

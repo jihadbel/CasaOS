@@ -3,6 +3,7 @@ package localauth
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -194,4 +195,54 @@ func TestPasswordChangeInvalidatesSessionsAndPersists(t *testing.T) {
 		t.Fatal(err)
 	}
 	login(t, reloaded.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})), newPassword)
+}
+
+func TestFullAttemptTableEvictsOldestWithoutGlobalLockout(t *testing.T) {
+	m, password, handler := testManager(t)
+	for _, entry := range []struct {
+		host           string
+		known, blocked bool
+		want           int
+	}{
+		{"127.0.0.1", false, false, 200},
+		{"198.51.100.1", false, false, 200},
+		{"198.51.100.2", true, false, 200},
+		{"198.51.100.3", true, true, 429},
+	} {
+		t.Run(entry.host, func(t *testing.T) {
+			m.mu.Lock()
+			m.attempts = make(map[string]attempt)
+			now := time.Now()
+			for i := 0; i < maxAttemptHosts; i++ {
+				m.attempts[fmt.Sprintf("host-%04d", i)] = attempt{count: 1, until: now.Add(time.Minute), last: now.Add(time.Duration(i) * time.Millisecond)}
+			}
+			if entry.known {
+				delete(m.attempts, "host-1023")
+				count := 1
+				if entry.blocked {
+					count = 10
+				}
+				m.attempts[entry.host] = attempt{count: count, until: now.Add(time.Minute), last: now}
+			}
+			m.mu.Unlock()
+			body, err := json.Marshal(map[string]string{"password": password})
+			if err != nil {
+				t.Fatal(err)
+			}
+			req := httptest.NewRequest("POST", "/api/auth/session", bytes.NewReader(body))
+			req.RemoteAddr = entry.host + ":1234"
+			w := httptest.NewRecorder()
+			handler.ServeHTTP(w, req)
+			if w.Code != entry.want {
+				t.Fatal(w.Code, w.Body.String())
+			}
+			m.mu.Lock()
+			_, oldestPresent := m.attempts["host-0000"]
+			count := len(m.attempts)
+			m.mu.Unlock()
+			if count > maxAttemptHosts || !entry.known && oldestPresent {
+				t.Fatal("eviction did not bound table or remove oldest host", count, oldestPresent)
+			}
+		})
+	}
 }
