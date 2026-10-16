@@ -2043,6 +2043,12 @@
     </style>
 </head>
 <body>
+<div id="loginOverlay" style="position:fixed;inset:0;z-index:10000;background:#f8fafc;display:flex;align-items:center;justify-content:center;padding:24px;" dir="rtl">
+<form id="loginForm" style="max-width:420px;padding:32px;background:white;border-radius:20px;box-shadow:0 12px 50px #0001;">
+<h2>تسجيل الدخول إلى CasaOS</h2><p>أدخل كلمة مرور المسؤول. عند التشغيل الأول تجدها في initial-password.txt داخل مجلد auth في إعدادات CasaOS.</p>
+<label for="loginPassword">كلمة المرور</label><input id="loginPassword" type="password" autocomplete="current-password" required class="search-input" style="width:100%;margin:12px 0;">
+<p id="loginError" role="alert" style="color:#dc2626;"></p><button id="loginSubmit" type="submit" class="btn btn-primary">دخول</button>
+</form></div>
 
     <!-- Drag & Drop Zone -->
     <div class="drop-overlay" id="dropOverlay">
@@ -2218,7 +2224,7 @@
                     <div class="hero-meta-pills">
                         <div class="meta-pill">
                             <svg class="icon icon-sm" style="color: var(--primary);" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-                            <span id="heroIpAddress">IP: 192.168.1.35:8080</span>
+                            <span id="heroIpAddress">جارٍ اكتشاف عنوان الشبكة</span>
                         </div>
                         <div class="meta-pill">
                             <svg class="icon icon-sm" style="color: var(--ram-color);" viewBox="0 0 24 24"><path d="M20 7h-7L10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
@@ -2313,7 +2319,7 @@
                             <div class="metric-progress-fill" id="netBar" style="background: linear-gradient(90deg, #d97706, #f59e0b); width: 2%;"></div>
                         </div>
                         <div class="metric-footer">
-                            <span id="netIpText">192.168.1.35</span>
+                            <span id="netIpText"></span>
                             <span id="netTotalTraffic">نشط</span>
                         </div>
                     </div>
@@ -2750,6 +2756,9 @@
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem;">
+                <input id="newAdminPassword" type="password" autocomplete="new-password" minlength="12" placeholder="كلمة مرور جديدة (12 حرفاً على الأقل)" class="search-input" style="min-width:0;">
+                <button class="btn btn-secondary" onclick="changeAdminPassword()">تغيير كلمة المرور</button>
+                <button class="btn btn-secondary" onclick="logout()">خروج</button>
                 <button class="btn btn-secondary" onclick="resetDefaultSettings()">استعادة الافتراضي</button>
                 <button class="btn btn-primary" onclick="saveSettings()">حفظ وتطبيق الإعدادات</button>
             </div>
@@ -2776,11 +2785,11 @@
             </div>
             <div style="text-align: center; display: flex; flex-direction: column; gap: 0.4rem;">
                 <div style="font-size: 0.95rem; font-weight: 700; color: var(--primary); font-family: var(--font-en);" id="lanUrlText">
-                    http://192.168.1.35:8080
+                    http://:8080
                 </div>
                 <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-muted);">
                     <span>عنوان IP:</span>
-                    <input type="text" id="customIpInput" value="192.168.1.35" style="width: 140px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; text-align: center; font-family: var(--font-en);" oninput="updateQRCodeUrl(this.value)">
+                    <input type="text" id="customIpInput" value="" style="width: 140px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; text-align: center; font-family: var(--font-en);" oninput="updateQRCodeUrl(this.value)">
                 </div>
             </div>
             <button class="btn btn-primary" onclick="triggerMobilePhotoUpload()" style="width: 100%;">
@@ -2920,7 +2929,8 @@
                 </div>
             </div>
             <div class="code-editor-box">
-                <textarea id="codeTextarea" class="code-textarea" spellcheck="false"></textarea>
+                <p id="codeStatus" role="status" aria-live="polite" style="padding: 0 16px; color: var(--text-muted);"></p>
+                <textarea id="codeTextarea" class="code-textarea" spellcheck="false" readonly></textarea>
             </div>
         </div>
     </div>
@@ -3002,6 +3012,97 @@
 
     <!-- Application JavaScript Engine -->
     <script>
+
+ let authenticated=false,bootstrapped=false,serverAddresses=[],selectedLANHost='';
+ let folderRequestID=0;
+ const realFetch=globalThis.fetch.bind(globalThis);
+ globalThis.fetch=async(...args)=>{const res=await realFetch(...args);if(res.status===401)showLogin();return res;};
+ function escapeHTML(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+ function actionAttrs(action,data={}){
+   let attrs=`data-action="${escapeHTML(action)}"`;
+   for(const [key,value]of Object.entries(data))attrs+=` data-${key}="${escapeHTML(value)}"`;
+   return attrs;
+ }
+ function itemPath(i){return i.path||currentPath.replace(/[/\\]+$/,'')+'/'+i.name;}
+ function itemAction(i){
+   if(i.is_dir)return 'folder';if(isPhoto(i.name))return 'image';if(isVideo(i.name))return 'video';
+   if(isMusic(i.name))return 'audio';if(isPdf(i.name))return 'pdf';if(isTextOrCode(i.name))return 'code';return 'open';
+ }
+ function rebuildMediaPlaylist(){mediaPlaylist=filteredItems.filter(i=>!i.is_dir&&(isPhoto(i.name)||isVideo(i.name))).map(i=>({path:itemPath(i),name:i.name,is_video:isVideo(i.name)}));}
+ function canExtract(name){return /\.zip$/i.test(name);}
+ function onFileAction(event){
+   const node=event.target.closest('[data-action]');if(!node)return;
+   const d=node.dataset;event.stopPropagation();
+   switch(d.action){
+    case 'folder':navigateToFolder(d.path);break;
+    case 'image':openEnhancedLightbox(d.path,d.name);break;
+    case 'video':openLightboxVideo(d.path);break;
+    case 'audio':playAudioTrack(d.path,d.name,0);break;
+    case 'pdf':openPdfModal(d.path,d.name);break;
+    case 'code':openCodeModal(d.path,d.name);break;
+    case 'open':window.open('/v1/file?path='+encodeURIComponent(d.path),'_blank','noopener');break;
+    case 'share':openShareModal(d.path,d.name,Number(d.size)||0);break;
+    case 'trash':moveToTrash(d.path);break;
+    case 'extract':extractZip(d.path);break;
+    case 'restore':restoreFromTrash(d.id);break;
+    case 'delete-trash':deleteTrashItem(d.id);break;
+    case 'quick-drive':setQuickDriveTarget(d.drive);break;
+   }
+ }
+ function showLogin(){authenticated=false;document.getElementById('loginOverlay').style.display='flex';document.getElementById('loginPassword').value='';}
+ async function startDashboard(){
+   const res=await fetch('/api/settings'),data=await res.json();
+   if(!res.ok||!data.success)throw Error(data.error||'تعذر قراءة إعدادات التخزين');
+   appSettings={...DEFAULT_SETTINGS,...data.settings};currentPath=appSettings.defaultPath;applySettingsToUI();
+   const info=await fetch('/api/server-info');if(info.ok)serverAddresses=(await info.json()).addresses||[];
+   setupPhoneQRCode();authenticated=true;document.getElementById('loginOverlay').style.display='none';
+   const tab=window.location.hash.slice(1);switchMainTab(['dashboard','files','timeline','trash'].includes(tab)?tab:'dashboard');
+   const pending=new URL(window.location.href).searchParams.get('next');
+   if(pending){
+     const target=new URL(pending,window.location.origin);
+     if(target.origin===window.location.origin&&['/v1/file','/v3/file'].includes(target.pathname)){
+       history.replaceState(null,'','/');window.location.assign(target.href);
+     }
+   }
+   if(!bootstrapped){
+     bootstrapped=true;
+     window.addEventListener('hashchange',()=>{const h=window.location.hash.slice(1);if(authenticated&&['dashboard','files','timeline','trash'].includes(h)&&h!==activeTab)switchMainTab(h);});
+     setInterval(()=>{if(authenticated&&activeTab==='dashboard')loadLiveMetrics();},2000);
+   }
+ }
+ async function submitLogin(event){
+   event.preventDefault();const error=document.getElementById('loginError'),button=document.getElementById('loginSubmit');button.disabled=true;error.textContent='';
+   try{
+     const res=await realFetch('/api/auth/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('loginPassword').value})});
+     if(!res.ok)throw Error(res.status===429?'محاولات كثيرة؛ انتظر 15 دقيقة':'كلمة المرور غير صحيحة');
+     document.getElementById('loginPassword').value='';await startDashboard();
+   }catch(err){error.textContent=err.message;}finally{button.disabled=false;}
+ }
+ async function logout(){await realFetch('/api/auth/session',{method:'DELETE'});audioPlayer.pause();closeLightbox();closeCodeModal();closePdfModal();closeSettingsModal();showLogin();}
+ async function changeAdminPassword(){
+   const input=document.getElementById('newAdminPassword');
+   try{
+     const res=await fetch('/api/auth/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:input.value})}),data=await res.json();
+     if(!res.ok)throw Error(data.error||'تعذر تغيير كلمة المرور');
+     input.value='';closeSettingsModal();showLogin();alert('تم تغيير كلمة المرور. سجل الدخول بكلمة المرور الجديدة.');
+   }catch(err){alert(err.message);}
+ }
+ async function persistSettings(settings){
+   const res=await fetch('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)}),data=await res.json();
+   if(!res.ok||!data.success)throw Error(data.error||'تعذر حفظ الإعدادات');
+   const oldDefault=appSettings.defaultPath;appSettings={...DEFAULT_SETTINGS,...data.settings};if(currentPath===oldDefault)currentPath=appSettings.defaultPath;
+   try{localStorage.setItem('casaos_path_settings',JSON.stringify(appSettings));}catch{}applySettingsToUI();
+ }
+ function lanOrigin(){
+   const local=['localhost','127.0.0.1','[::1]',''].includes(window.location.hostname),host=local?(selectedLANHost||serverAddresses[0]||''):window.location.hostname;
+   if(!host)return '';const url=new URL(window.location.origin);url.hostname=host;return url.origin;
+ }
+ async function copyText(text,input){
+   if(navigator.clipboard?.writeText&&window.isSecureContext){try{await navigator.clipboard.writeText(text);return true;}catch{}}
+   input.focus();input.select();if(typeof document.execCommand==='function'&&document.execCommand('copy'))return true;
+   alert('حدد النص ثم اختر نسخ من قائمة الجهاز.');return false;
+ }
+
         // Default Config & Storage Paths Settings
         const DEFAULT_SETTINGS = {
             smartAutoSort: true,
@@ -3023,6 +3124,7 @@
         let allItems = [];
         let filteredItems = [];
         let activeFilter = 'all';
+        let searchQuery = '';
         let viewMode = localStorage.getItem('casaos_view_mode') || 'grid'; // 'grid' | 'list'
         let currentSort = 'name_asc';
         let lastDisksData = [];
@@ -3056,31 +3158,11 @@
             generic: `<svg class="icon item-icon-file" viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>`
         };
 
-        // Bootstrap App
-        document.addEventListener('DOMContentLoaded', () => {
-            setupDragAndDrop();
-            applySettingsToUI();
-            setupPhoneQRCode();
-
-            const hash = window.location.hash.replace('#', '');
-            if (['dashboard', 'files', 'timeline', 'trash'].includes(hash)) {
-                switchMainTab(hash);
-            } else {
-                loadLiveMetrics();
-            }
-
-            window.addEventListener('hashchange', () => {
-                const h = window.location.hash.replace('#', '');
-                if (['dashboard', 'files', 'timeline', 'trash'].includes(h) && h !== activeTab) {
-                    switchMainTab(h);
-                }
-            });
-
-            setInterval(() => {
-                if (activeTab === 'dashboard') {
-                    loadLiveMetrics();
-                }
-            }, 2000);
+        document.addEventListener('DOMContentLoaded',async()=>{
+            setupDragAndDrop();document.addEventListener('click',onFileAction);
+            document.getElementById('loginForm').addEventListener('submit',submitLogin);
+            try{const res=await realFetch('/api/auth/session');if(res.status===404||(res.ok&&(await res.json()).authenticated))await startDashboard();else showLogin();}
+            catch(err){document.getElementById('loginError').textContent=err.message;}
         });
 
         // Settings Manager
@@ -3093,29 +3175,14 @@
             }
         }
 
-        function saveSettings() {
-            appSettings.smartAutoSort = document.getElementById('smartAutoSortToggle').checked;
-            appSettings.appsPath = document.getElementById('settingAppsPath').value.trim() || DEFAULT_SETTINGS.appsPath;
-            appSettings.archivesPath = document.getElementById('settingArchivesPath').value.trim() || DEFAULT_SETTINGS.archivesPath;
-            appSettings.photosPath = document.getElementById('settingPhotosPath').value.trim() || DEFAULT_SETTINGS.photosPath;
-            appSettings.videosPath = document.getElementById('settingVideosPath').value.trim() || DEFAULT_SETTINGS.videosPath;
-            appSettings.documentsPath = document.getElementById('settingDocumentsPath').value.trim() || DEFAULT_SETTINGS.documentsPath;
-            appSettings.musicPath = document.getElementById('settingMusicPath').value.trim() || DEFAULT_SETTINGS.musicPath;
-            appSettings.mobilePath = document.getElementById('settingMobilePath').value.trim() || DEFAULT_SETTINGS.mobilePath;
-            appSettings.defaultPath = document.getElementById('settingDefaultPath').value.trim() || DEFAULT_SETTINGS.defaultPath;
-
-            localStorage.setItem('casaos_path_settings', JSON.stringify(appSettings));
-            applySettingsToUI();
-            closeSettingsModal();
-            alert('تم حفظ إعدادات المسارات والتصنيف بنجاح!');
+        async function saveSettings(){
+         const next={...appSettings,smartAutoSort:document.getElementById('smartAutoSortToggle').checked};
+         const fields={appsPath:'settingAppsPath',archivesPath:'settingArchivesPath',photosPath:'settingPhotosPath',videosPath:'settingVideosPath',documentsPath:'settingDocumentsPath',musicPath:'settingMusicPath',mobilePath:'settingMobilePath',defaultPath:'settingDefaultPath'};
+         for(const[key,id]of Object.entries(fields))next[key]=document.getElementById(id).value.trim()||DEFAULT_SETTINGS[key];
+         try{await persistSettings(next);closeSettingsModal();switchMainTab(activeTab);alert('تم حفظ إعدادات التخزين لجميع الأجهزة.');}catch(err){alert(err.message);}
         }
 
-        function resetDefaultSettings() {
-            appSettings = { ...DEFAULT_SETTINGS };
-            localStorage.setItem('casaos_path_settings', JSON.stringify(appSettings));
-            applySettingsToUI();
-            populateSettingsModal();
-        }
+        async function resetDefaultSettings(){try{await persistSettings({...DEFAULT_SETTINGS});populateSettingsModal();}catch(err){alert(err.message);}}
 
         function applySettingsToUI() {
             const label = document.getElementById('autoSortStatusLabel');
@@ -3163,7 +3230,7 @@
                 lastDisksData.forEach(d => {
                     const driveLetter = d.drive || 'C';
                     btnsHtml += `
-                        <button class="btn btn-secondary" style="height: 32px; font-size: 0.8rem; padding: 0 0.75rem;" onclick="setQuickDriveTarget('${driveLetter}')">
+                        <button class="btn btn-secondary" style="height: 32px; font-size: 0.8rem; padding: 0 0.75rem;" ${actionAttrs("quick-drive",{drive:driveLetter})}>
                             تحويل المسارات إلى (${driveLetter}:)
                         </button>
                     `;
@@ -3190,7 +3257,8 @@
         }
 
         // View Switching (Dashboard, Files, Timeline, Trash)
-        function switchMainTab(tab) {
+        function switchMainTab(tab, loadContent = true) {
+            if (tab !== 'timeline') ++timelineRequestID;
             activeTab = tab;
             try {
                 if (window.location.hash !== '#' + tab) {
@@ -3232,6 +3300,7 @@
                 headerNewFolder.style.display = (tab === 'files') ? 'inline-flex' : 'none';
             }
 
+            if (!loadContent) return;
             if (tab === 'dashboard') {
                 loadLiveMetrics();
             } else if (tab === 'files') {
@@ -3244,7 +3313,7 @@
         }
 
         function navigateToCategory(cat) {
-            switchMainTab('files');
+            switchMainTab('files', false);
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
 
             if (cat === 'apps') {
@@ -3282,7 +3351,7 @@
         // Folder Navigation
         function navigateToFolder(path) {
             currentPath = path;
-            switchMainTab('files');
+            switchMainTab('files', false);
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
             if (path.includes('Applications')) {
                 document.getElementById('navApps')?.classList.add('active');
@@ -3306,6 +3375,7 @@
         }
 
         async function loadCurrentFolder() {
+            const requestID=++folderRequestID,requestedPath=currentPath;
             renderBreadcrumbs();
             const container = document.getElementById('viewContainer');
             const empty = document.getElementById('emptyState');
@@ -3319,9 +3389,10 @@
             `;
 
             try {
-                const res = await fetch(`/v1/folder?path=${encodeURIComponent(currentPath)}`);
+                const res = await fetch(`/v1/folder?path=${encodeURIComponent(requestedPath)}`);
                 const json = await res.json();
 
+                if(requestID!==folderRequestID||requestedPath!==currentPath)return;
                 if (json.success === 200 && json.data && json.data.content) {
                     allItems = json.data.content;
                     updateItemCounts();
@@ -3331,11 +3402,12 @@
                         <div class="state-container" style="color: var(--danger);">
                             <svg class="icon icon-xl" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                             <h4>تعذر قراءة المجلد</h4>
-                            <p style="font-size: 0.85rem;">${json.message || 'المجلد فارغ أو غير منشأ بعد'}</p>
+                            <p style="font-size: 0.85rem;">${escapeHTML(json.message || 'المجلد فارغ أو غير منشأ بعد')}</p>
                         </div>
                     `;
                 }
             } catch (err) {
+                if(requestID!==folderRequestID)return;
                 console.error(err);
                 container.innerHTML = `
                     <div class="state-container" style="color: var(--danger);">
@@ -3346,44 +3418,17 @@
             }
         }
 
-        function renderBreadcrumbs() {
-            const container = document.getElementById('breadcrumbsContainer');
-            const parts = currentPath.split(/[/\\]+/).filter(Boolean);
-            
-            let html = `
-                <span class="crumb-item" onclick="navigateToFolder('/')">
-                    <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-                    <span>الأقراص</span>
-                </span>
-            `;
-            
-            let accumulated = '';
-            for (let i = 0; i < parts.length; i++) {
-                const part = parts[i];
-                if (i === 0 && part.includes(':')) {
-                    accumulated = part + '\\';
-                } else {
-                    accumulated += (accumulated.endsWith('\\') || accumulated.endsWith('/') ? '' : '/') + part;
-                }
-                const isLast = (i === parts.length - 1);
-                let label = part;
-                if (part === 'DATA') label = '📁 التخزين الرئيسي (DATA)';
-                if (part === 'Applications') label = '💻 البرامج والتطبيقات (Applications)';
-                if (part === 'Archives') label = '📦 الملفات المضغوطة (Archives)';
-                if (part === 'Photos') label = '📸 الصور (Photos)';
-                if (part === 'Videos') label = '🎬 الفيديوهات (Videos)';
-                if (part === 'Documents') label = '📄 المستندات (Documents)';
-                if (part === 'Music') label = '🎵 الصوتيات (Music)';
-                if (part === 'Mobile_Uploads') label = '📱 رفع الهاتف (Mobile)';
-
-                html += `
-                    <span class="crumb-separator">/</span>
-                    <span class="crumb-item ${isLast ? 'active' : ''}" onclick="${isLast ? '' : `navigateToFolder('${accumulated.replace(/\\/g, '\\\\')}')`}">
-                        ${label}
-                    </span>
-                `;
-            }
-            container.innerHTML = html;
+        function renderBreadcrumbs(){
+         const container=document.getElementById('breadcrumbsContainer');container.replaceChildren();
+         const root=document.createElement('span');root.className='crumb-item';root.textContent='الأقراص';root.addEventListener('click',()=>navigateToFolder('/'));container.append(root);
+         const parts=currentPath.split(/[/\\]+/).filter(Boolean);let accumulated=/^(\\\\|\/\/)/.test(currentPath)?'\\\\':'';
+         const labels={DATA:'التخزين الرئيسي',Applications:'البرامج',Archives:'الأرشيفات',Photos:'الصور',Videos:'الفيديوهات',Documents:'المستندات',Music:'الصوتيات',Mobile_Uploads:'رفع الهاتف'};
+         parts.forEach((part,index)=>{
+           if(index===0&&part.endsWith(':'))accumulated=part+'/';else accumulated+=(accumulated.endsWith('/')||accumulated.endsWith('\\')?'':'/')+part;
+           const path=accumulated,separator=document.createElement('span');separator.className='crumb-separator';separator.textContent='/';
+           const crumb=document.createElement('span');crumb.className='crumb-item'+(index===parts.length-1?' active':'');crumb.textContent=labels[part]||part;
+           if(index<parts.length-1)crumb.addEventListener('click',()=>navigateToFolder(path));container.append(separator,crumb);
+         });
         }
 
         function updateItemCounts() {
@@ -3419,6 +3464,7 @@
             } else if (activeFilter === 'music') {
                 filteredItems = allItems.filter(i => isMusic(i.name) || i.is_dir);
             }
+            if (searchQuery) filteredItems = filteredItems.filter(item => item.name.toLowerCase().includes(searchQuery));
             renderItems();
         }
 
@@ -3499,19 +3545,18 @@
         }
 
         function renderGridView(container) {
+            rebuildMediaPlaylist();
             let html = '<div class="items-grid">';
             filteredItems.forEach((item, index) => {
                 const isDir = item.is_dir;
                 const path = item.path || (currentPath.endsWith('/') || currentPath.endsWith('\\') ? currentPath + item.name : currentPath + '/' + item.name);
                 const fileUrl = `/v1/file?path=${encodeURIComponent(path)}`;
-                const safePath = path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                const safeName = item.name.replace(/'/g, "\\'");
 
                 let previewHtml = '';
                 if (isDir) {
                     previewHtml = item.name.includes('Drive') ? ICONS.drive : ICONS.folder;
                 } else if (isPhoto(item.name)) {
-                    previewHtml = `<img src="${fileUrl}" loading="lazy" alt="${item.name}" onerror="this.parentElement.innerHTML=ICONS.image;">`;
+                    previewHtml = `<img src="${fileUrl}" loading="lazy" alt="${escapeHTML(item.name)}" onerror="this.parentElement.innerHTML=ICONS.image;">`;
                 } else if (isVideo(item.name)) {
                     previewHtml = ICONS.video;
                 } else if (isApp(item.name)) {
@@ -3531,43 +3576,26 @@
                 }
 
                 // Primary click action
-                let clickAction = '';
-                if (isDir) {
-                    clickAction = `navigateToFolder('${safePath}')`;
-                } else if (isPhoto(item.name)) {
-                    clickAction = `openEnhancedLightbox('${safePath}', '${safeName}', ${index})`;
-                } else if (isVideo(item.name)) {
-                    clickAction = `openLightboxVideo('${safePath}')`;
-                } else if (isMusic(item.name)) {
-                    clickAction = `playAudioTrack('${safePath}', '${safeName}', ${index})`;
-                } else if (isPdf(item.name)) {
-                    clickAction = `openPdfModal('${safePath}', '${safeName}')`;
-                } else if (isTextOrCode(item.name)) {
-                    clickAction = `openCodeModal('${safePath}', '${safeName}')`;
-                } else {
-                    clickAction = `window.open('${fileUrl}')`;
-                }
-
                 // Quick hover actions buttons
                 let extraActionBtn = '';
-                if (isZip(item.name)) {
-                    extraActionBtn = `<button class="item-action-btn" onclick="event.stopPropagation(); extractZip('${safePath}')" title="📦 فك الضغط على السيرفر"><svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></button>`;
+                if (!item.is_dir && canExtract(item.name)) {
+                    extraActionBtn = `<button class="item-action-btn" ${actionAttrs("extract",{path:path,name:item.name,size:item.size||0})} title="📦 فك الضغط على السيرفر"><svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></button>`;
                 } else if (isMusic(item.name)) {
-                    extraActionBtn = `<button class="item-action-btn" onclick="event.stopPropagation(); playAudioTrack('${safePath}', '${safeName}', ${index})" title="🎵 تشغيل بالمشغل العائم"><svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>`;
+                    extraActionBtn = `<button class="item-action-btn" ${actionAttrs("audio",{path:path,name:item.name,size:item.size||0})} title="🎵 تشغيل بالمشغل العائم"><svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>`;
                 } else if (isPdf(item.name)) {
-                    extraActionBtn = `<button class="item-action-btn" onclick="event.stopPropagation(); openPdfModal('${safePath}', '${safeName}')" title="👁️ استعراض PDF"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`;
+                    extraActionBtn = `<button class="item-action-btn" ${actionAttrs("pdf",{path:path,name:item.name,size:item.size||0})} title="👁️ استعراض PDF"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>`;
                 } else if (isTextOrCode(item.name)) {
-                    extraActionBtn = `<button class="item-action-btn" onclick="event.stopPropagation(); openCodeModal('${safePath}', '${safeName}')" title="📝 عرض وتعديل الكود"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>`;
+                    extraActionBtn = `<button class="item-action-btn" ${actionAttrs("code",{path:path,name:item.name,size:item.size||0})} title="📝 عرض وتعديل الكود"><svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>`;
                 }
 
                 html += `
-                    <div class="item-card" onclick="${clickAction}">
+                    <div class="item-card" ${actionAttrs(itemAction(item),{path:itemPath(item),name:item.name})}>
                         <div class="item-quick-actions">
                             ${extraActionBtn}
-                            <button class="item-action-btn" onclick="event.stopPropagation(); openShareModal('${safePath}', '${safeName}', ${item.size || 0})" title="🔗 مشاركة الرابط و QR">
+                            <button class="item-action-btn" ${actionAttrs("share",{path:path,name:item.name,size:item.size||0})} title="🔗 مشاركة الرابط و QR">
                                 <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                             </button>
-                            <button class="item-action-btn danger" onclick="event.stopPropagation(); moveToTrash('${safePath}')" title="🗑️ نقل إلى سلة المحذوفات">
+                            <button class="item-action-btn danger" ${actionAttrs("trash",{path:path,name:item.name,size:item.size||0})} title="🗑️ نقل إلى سلة المحذوفات">
                                 <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                             </button>
                         </div>
@@ -3575,7 +3603,7 @@
                             ${previewHtml}
                         </div>
                         <div class="item-info">
-                            <div class="item-name" title="${item.name}">${item.name}</div>
+                            <div class="item-name" title="${escapeHTML(item.name)}">${escapeHTML(item.name)}</div>
                             <div class="item-meta">
                                 <span>${isDir ? 'مجلد' : formatBytes(item.size)}</span>
                                 <span>${formatDate(item.modified || item.date)}</span>
@@ -3589,6 +3617,7 @@
         }
 
         function renderListView(container) {
+            rebuildMediaPlaylist();
             let html = `
                 <div class="items-list">
                     <div class="list-header">
@@ -3603,47 +3632,28 @@
                 const isDir = item.is_dir;
                 const path = item.path || (currentPath.endsWith('/') || currentPath.endsWith('\\') ? currentPath + item.name : currentPath + '/' + item.name);
                 const fileUrl = `/v1/file?path=${encodeURIComponent(path)}`;
-                const safePath = path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                const safeName = item.name.replace(/'/g, "\\'");
 
                 let icon = isDir ? ICONS.folder : (isPhoto(item.name) ? ICONS.image : (isVideo(item.name) ? ICONS.video : (isApp(item.name) ? (isApk(item.name) ? ICONS.apk : ICONS.app) : (isZip(item.name) ? ICONS.archive : (isMusic(item.name) ? ICONS.music : ICONS.generic)))));
                 if (isPdf(item.name)) icon = `<svg class="icon" style="color: #ef4444;" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
                 if (isTextOrCode(item.name)) icon = `<svg class="icon" style="color: #2563eb;" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`;
 
-                let clickAction = '';
-                if (isDir) {
-                    clickAction = `navigateToFolder('${safePath}')`;
-                } else if (isPhoto(item.name)) {
-                    clickAction = `openEnhancedLightbox('${safePath}', '${safeName}', ${index})`;
-                } else if (isVideo(item.name)) {
-                    clickAction = `openLightboxVideo('${safePath}')`;
-                } else if (isMusic(item.name)) {
-                    clickAction = `playAudioTrack('${safePath}', '${safeName}', ${index})`;
-                } else if (isPdf(item.name)) {
-                    clickAction = `openPdfModal('${safePath}', '${safeName}')`;
-                } else if (isTextOrCode(item.name)) {
-                    clickAction = `openCodeModal('${safePath}', '${safeName}')`;
-                } else {
-                    clickAction = `window.open('${fileUrl}')`;
-                }
-
                 html += `
-                    <div class="list-row" onclick="${clickAction}">
+                    <div class="list-row" ${actionAttrs(itemAction(item),{path:itemPath(item),name:item.name})}>
                         <div class="list-name-col">
                             <span style="width: 22px; height: 22px; display: inline-flex;">${icon}</span>
-                            <span title="${item.name}">${item.name}</span>
+                            <span title="${escapeHTML(item.name)}">${escapeHTML(item.name)}</span>
                         </div>
                         <div class="list-meta-col">${isDir ? '--' : formatBytes(item.size)}</div>
                         <div class="list-meta-col">${formatDate(item.modified || item.date)}</div>
                         <div style="text-align: left; display: flex; align-items: center; justify-content: flex-end; gap: 0.35rem;">
-                            ${isZip(item.name) ? `<button onclick="event.stopPropagation(); extractZip('${safePath}')" class="btn btn-secondary btn-icon-only" style="width: 30px; height: 30px;" title="فك الضغط"><svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></button>` : ''}
-                            <button onclick="event.stopPropagation(); openShareModal('${safePath}', '${safeName}', ${item.size || 0})" class="btn btn-secondary btn-icon-only" style="width: 30px; height: 30px;" title="مشاركة">
+                            ${!item.is_dir && canExtract(item.name) ? `<button ${actionAttrs("extract",{path:path,name:item.name,size:item.size||0})} class="btn btn-secondary btn-icon-only" style="width: 30px; height: 30px;" title="فك الضغط"><svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></button>` : ''}
+                            <button ${actionAttrs("share",{path:path,name:item.name,size:item.size||0})} class="btn btn-secondary btn-icon-only" style="width: 30px; height: 30px;" title="مشاركة">
                                 <svg class="icon icon-sm" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                             </button>
                             <a href="${fileUrl}" download onclick="event.stopPropagation();" class="btn btn-secondary btn-icon-only" style="width: 30px; height: 30px;" title="تنزيل">
                                 <svg class="icon icon-sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                             </a>
-                            <button onclick="event.stopPropagation(); moveToTrash('${safePath}')" class="btn btn-secondary btn-icon-only" style="width: 30px; height: 30px; color: var(--danger);" title="حذف">
+                            <button ${actionAttrs("trash",{path:path,name:item.name,size:item.size||0})} class="btn btn-secondary btn-icon-only" style="width: 30px; height: 30px; color: var(--danger);" title="حذف">
                                 <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                             </button>
                         </div>
@@ -3719,7 +3729,7 @@
 
                             // Sidebar Mini Card
                             drivesSidebarHtml += `
-                                <div class="drive-nav-card" onclick="navigateToFolder('${d.path.replace(/\\/g, '\\\\')}')">
+                                <div class="drive-nav-card" ${actionAttrs("folder",{path:d.path})}>
                                     <div class="drive-nav-header">
                                         <div style="display: flex; align-items: center; gap: 0.35rem;">
                                             <svg class="icon icon-sm" style="color: var(--disk-color);" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/></svg>
@@ -3780,7 +3790,7 @@
                                     </div>
 
                                     <div class="disk-card-actions">
-                                        <button class="btn btn-secondary" onclick="navigateToFolder('${d.path.replace(/\\/g, '\\\\')}')" style="height: 36px; font-size: 0.82rem; width: 100%;">
+                                        <button class="btn btn-secondary" ${actionAttrs("folder",{path:d.path})} style="height: 36px; font-size: 0.82rem; width: 100%;">
                                             <svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 17 22 12"/></svg>
                                             <span>تصفح ملفات القرص (${driveLetter}:)</span>
                                         </button>
@@ -3870,7 +3880,7 @@
             return /\.(jpg|jpeg|png|gif|webp|bmp|svg|avif|heic|heif|raw|ico|tiff|psd|ai)$/i.test(name);
         }
         function isVideo(name) {
-            return /\.(mp4|mkv|webm|mov|avi|flv|wmv|m4v|3gp|ts|mpeg)$/i.test(name);
+            return /\.(mp4|mkv|webm|mov|avi|flv|wmv|m4v|3gp|mpeg)$/i.test(name);
         }
         function isMusic(name) {
             return /\.(mp3|wav|ogg|flac|m4a|aac|wma|opus)$/i.test(name);
@@ -3890,6 +3900,7 @@
 
         // Determine destination folder based on smart categorization settings
         function getSmartDestinationPath(fileName, isMobileUpload = false) {
+            if (isMobileUpload) return appSettings.mobilePath || DEFAULT_SETTINGS.mobilePath;
             if (!appSettings.smartAutoSort) {
                 return currentPath;
             }
@@ -3906,8 +3917,6 @@
                 return appSettings.documentsPath || 'C:/CasaOS/DATA/Documents';
             } else if (isMusic(fileName)) {
                 return appSettings.musicPath || 'C:/CasaOS/DATA/Music';
-            } else if (isMobileUpload) {
-                return appSettings.mobilePath || 'C:/CasaOS/DATA/Mobile_Uploads';
             } else {
                 return currentPath || appSettings.defaultPath || 'C:/CasaOS/DATA';
             }
@@ -3942,13 +3951,8 @@
 
         // Search Filter
         function handleSearch(e) {
-            const q = e.target.value.toLowerCase().trim();
-            if (!q) {
-                filteredItems = [...allItems];
-            } else {
-                filteredItems = allItems.filter(item => item.name.toLowerCase().includes(q));
-            }
-            renderItems();
+            searchQuery = e.target.value.toLowerCase().trim();
+            applyCurrentFilter();
         }
 
         // Upload Handlers
@@ -3979,6 +3983,7 @@
             toast.style.display = 'flex';
             bar.style.width = '0%';
 
+            const uploadFailures = [];
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
                 const targetDir = getSmartDestinationPath(file.name, isMobile);
@@ -3992,7 +3997,7 @@
                 formData.append('relativePath', file.name);
                 formData.append('path', targetDir);
 
-                await new Promise((resolve) => {
+                const uploadError = await new Promise((resolve) => {
                     const xhr = new XMLHttpRequest();
                     xhr.open('POST', '/v1/file/upload', true);
 
@@ -4004,13 +4009,18 @@
                         }
                     };
 
-                    xhr.onload = () => resolve();
-                    xhr.onerror = () => resolve();
+                    xhr.onload = () => {
+                        if(xhr.status===401)showLogin();
+                        try{const result=JSON.parse(xhr.responseText);resolve(xhr.status>=200&&xhr.status<300&&result.success===200?null:(result.message||result.error||'فشل الرفع'));}catch{resolve('استجابة خادم غير صالحة');}
+                    };
+                    xhr.onerror=()=>resolve('انقطع الاتصال');xhr.onabort=()=>resolve('تم إلغاء الرفع');xhr.ontimeout=()=>resolve('انتهت المهلة');xhr.timeout=30*60*1000;
                     xhr.send(formData);
                 });
+                if(uploadError)uploadFailures.push(file.name+': '+uploadError);
             }
 
-            statusText.innerText = 'تم الرفع والتصنيف بنجاح!';
+            statusText.innerText = uploadFailures.length?'فشل رفع '+uploadFailures.length+' من '+files.length:'تم الرفع والتصنيف بنجاح!';
+            if(uploadFailures.length)alert(uploadFailures.join('\n'));
             bar.style.width = '100%';
             setTimeout(() => {
                 toast.style.display = 'none';
@@ -4043,7 +4053,8 @@
         // Enhanced Lightbox & Media Navigation
         // =========================================================================
         function openEnhancedLightbox(path, name, index = -1) {
-            currentMediaIndex = index;
+            currentMediaIndex = mediaPlaylist.findIndex(i=>i.path===path);
+            index = currentMediaIndex;
             const modal = document.getElementById('lightboxModal');
             const body = document.getElementById('lightboxBody');
             const title = document.getElementById('lightboxTitle');
@@ -4071,6 +4082,7 @@
         }
 
         function openLightboxVideo(path) {
+            currentMediaIndex = mediaPlaylist.findIndex(i=>i.path===path);
             const modal = document.getElementById('lightboxModal');
             const body = document.getElementById('lightboxBody');
             const title = document.getElementById('lightboxTitle');
@@ -4130,15 +4142,15 @@
         // =========================================================================
         // Floating Mini Background Audio Player Engine
         // =========================================================================
-        function playAudioTrack(path, name, index = -1) {
-            audioPlaylist = filteredItems.filter(i => isMusic(i.name)).map(i => ({
+        function playAudioTrack(path, name, index = -1, preservePlaylist = false) {
+            if (!preservePlaylist) {
+              audioPlaylist = filteredItems.filter(i => !i.is_dir && isMusic(i.name)).map(i => ({
                 path: i.path || (currentPath.endsWith('/') || currentPath.endsWith('\\') ? currentPath + i.name : currentPath + '/' + i.name),
                 name: i.name
-            }));
-
-            if (index >= 0) {
-                currentAudioIndex = audioPlaylist.findIndex(t => t.path === path);
+              }));
+              if (!audioPlaylist.some(track => track.path === path)) audioPlaylist = [{path, name}];
             }
+            currentAudioIndex = audioPlaylist.findIndex(t => t.path === path);
 
             const playerEl = document.getElementById('floatingAudioPlayer');
             const titleEl = document.getElementById('audioTrackTitle');
@@ -4173,14 +4185,14 @@
             if (audioPlaylist.length <= 1) return;
             currentAudioIndex = (currentAudioIndex + 1) % audioPlaylist.length;
             const nextTrack = audioPlaylist[currentAudioIndex];
-            playAudioTrack(nextTrack.path, nextTrack.name, currentAudioIndex);
+            playAudioTrack(nextTrack.path, nextTrack.name, currentAudioIndex, true);
         }
 
         function prevAudioTrack() {
             if (audioPlaylist.length <= 1) return;
             currentAudioIndex = (currentAudioIndex - 1 + audioPlaylist.length) % audioPlaylist.length;
             const prevTrack = audioPlaylist[currentAudioIndex];
-            playAudioTrack(prevTrack.path, prevTrack.name, currentAudioIndex);
+            playAudioTrack(prevTrack.path, prevTrack.name, currentAudioIndex, true);
         }
 
         function seekAudio(val) {
@@ -4232,8 +4244,10 @@
         // Smart Timeline Gallery Engine (Google Photos Style)
         // =========================================================================
         let activeTimelineFilter = 'all';
+        let timelineRequestID = 0;
 
         async function loadTimeline() {
+            const requestID = ++timelineRequestID, filter = activeTimelineFilter;
             const container = document.getElementById('timelineContainer');
             const empty = document.getElementById('timelineEmptyState');
             container.innerHTML = `
@@ -4245,9 +4259,12 @@
             empty.style.display = 'none';
 
             try {
-                const res = await fetch(`/api/media/timeline?type=${activeTimelineFilter}`);
+                const res = await fetch(`/api/media/timeline?type=${filter}`);
                 const data = await res.json();
+                if (requestID !== timelineRequestID || filter !== activeTimelineFilter) return;
 
+                if (!res.ok || !data.success) throw Error(data.error || 'تعذر تحميل المعرض');
+                mediaPlaylist = [];
                 if (!data.timeline || data.timeline.length === 0) {
                     container.innerHTML = '';
                     empty.style.display = 'flex';
@@ -4267,7 +4284,7 @@
                             <div class="timeline-month-header">
                                 <div class="timeline-month-title">
                                     <svg class="icon icon-sm" style="color: #ec4899;" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                                    <span>${group.period}</span>
+                                    <span>${escapeHTML(group.period)}</span>
                                 </div>
                                 <span class="timeline-month-badge">${group.items.length} عنصر</span>
                             </div>
@@ -4278,23 +4295,18 @@
                         const itemIdx = totalIdx++;
                         mediaPlaylist.push(item);
                         const fileUrl = `/v1/file?path=${encodeURIComponent(item.path)}`;
-                        const safePath = item.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                        const safeName = item.name.replace(/'/g, "\\'");
 
-                        const clickAction = item.is_video 
-                            ? `openLightboxVideo('${safePath}')` 
-                            : `openEnhancedLightbox('${safePath}', '${safeName}', ${itemIdx})`;
 
                         const mediaPreview = item.is_video 
                             ? `<video src="${fileUrl}#t=0.5" preload="metadata" muted playsinline style="width:100%; height:100%; object-fit:cover; pointer-events:none; display:block;"></video>`
-                            : `<img src="${fileUrl}" loading="lazy" alt="${item.name}">`;
+                            : `<img src="${fileUrl}" loading="lazy" alt="${escapeHTML(item.name)}">`;
 
                         html += `
-                            <div class="timeline-item" onclick="${clickAction}">
+                            <div class="timeline-item" ${actionAttrs(itemAction(item),{path:itemPath(item),name:item.name})}>
                                 ${mediaPreview}
                                 ${item.is_video ? `<div class="timeline-video-badge"><svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> فيديو</div>` : ''}
                                 <div class="timeline-item-overlay">
-                                    <div class="timeline-item-name" title="${item.name}">${item.name}</div>
+                                    <div class="timeline-item-name" title="${escapeHTML(item.name)}">${escapeHTML(item.name)}</div>
                                     <div style="font-size: 0.72rem; opacity: 0.85; font-family: var(--font-en);">${formatBytes(item.size)} • ${item.date_str}</div>
                                 </div>
                             </div>
@@ -4309,6 +4321,7 @@
 
                 container.innerHTML = html;
             } catch (err) {
+                if (requestID !== timelineRequestID) return;
                 console.error("Timeline load error", err);
                 container.innerHTML = `<div class="state-container" style="color: var(--danger);"><p>تعذر تحميل المعرض الزمني</p></div>`;
             }
@@ -4338,6 +4351,7 @@
             try {
                 const res = await fetch('/api/trash');
                 const data = await res.json();
+                if (!res.ok || !data.success) throw Error(data.error || 'تعذر قراءة السلة');
                 trashedItemsList = data.items || [];
 
                 if (badge) {
@@ -4363,19 +4377,19 @@
                             <td>
                                 <div style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
                                     <span style="width: 22px; height: 22px; display: inline-flex;">${icon}</span>
-                                    <span>${item.name}</span>
+                                    <span>${escapeHTML(item.name)}</span>
                                 </div>
                             </td>
-                            <td><span style="font-family: var(--font-en); font-size: 0.8rem; color: var(--text-secondary);">${item.original_path}</span></td>
+                            <td><span style="font-family: var(--font-en); font-size: 0.8rem; color: var(--text-secondary);">${escapeHTML(item.original_path)}</span></td>
                             <td><span style="font-family: var(--font-en);">${item.is_dir ? '--' : formatBytes(item.size)}</span></td>
                             <td><span style="font-size: 0.8rem; color: var(--text-muted);">${dateFormatted}</span></td>
                             <td style="text-align: left;">
                                 <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem;">
-                                    <button class="btn btn-secondary" style="height: 32px; font-size: 0.8rem; color: var(--success);" onclick="restoreFromTrash('${item.id}')">
+                                    <button class="btn btn-secondary" style="height: 32px; font-size: 0.8rem; color: var(--success);" ${actionAttrs("restore",{id:item.id})}>
                                         <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
                                         <span>استرجاع</span>
                                     </button>
-                                    <button class="btn btn-secondary" style="height: 32px; font-size: 0.8rem; color: var(--danger);" onclick="deleteTrashItem('${item.id}')">
+                                    <button class="btn btn-secondary" style="height: 32px; font-size: 0.8rem; color: var(--danger);" ${actionAttrs("delete-trash",{id:item.id})}>
                                         <svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                         <span>حذف نهائي</span>
                                     </button>
@@ -4433,34 +4447,16 @@
             }
         }
 
-        async function deleteTrashItem(id) {
-            if (!confirm('هل أنت متأكد من الحذف النهائي؟ لا يمكن استرجاع هذا الملف بعد حذفه!')) return;
-            try {
-                await fetch('/api/trash/delete', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: id })
-                });
-                loadTrash();
-            } catch (err) {
-                alert('خطأ أثناء الحذف النهائي');
-            }
+        async function deleteTrashItem(id){
+         if(!confirm('حذف هذا العنصر نهائياً؟'))return;
+         try{const res=await fetch('/api/trash/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}),data=await res.json();if(!res.ok||!data.success)throw Error(data.error||'فشل الحذف');await loadTrash();}catch(err){alert(err.message);}
         }
 
-        async function emptyTrashConfirm() {
-            if (!confirm('هل أنت متأكد من رغبتك في إفراغ سلة المحذوفات بالكامل وحذف جميع محتوياتها نهائياً؟')) return;
-            try {
-                await fetch('/api/trash/empty', { method: 'POST' });
-                loadTrash();
-                alert('تم إفراغ سلة المحذوفات نهائياً!');
-            } catch (err) {
-                alert('خطأ أثناء إفراغ سلة المحذوفات');
-            }
+        async function emptyTrashConfirm(){
+         if(!confirm('إفراغ سلة المحذوفات نهائياً؟'))return;
+         try{const res=await fetch('/api/trash/empty',{method:'POST'}),data=await res.json();if(!res.ok||!data.success)throw Error(data.error||'فشل الإفراغ');await loadTrash();alert('تم إفراغ السلة.');}catch(err){alert(err.message);}
         }
 
-        // =========================================================================
-        // In-Cloud Zip & Extract Engine
-        // =========================================================================
         async function extractZip(path) {
             const toast = document.getElementById('uploadToast');
             const statusText = document.getElementById('uploadStatusText');
@@ -4488,7 +4484,9 @@
         }
 
         async function compressCurrentFolder() {
-            const folderName = currentPath.split(/[/\\]+/).filter(Boolean).pop() || 'Archive';
+            const folderName = /^[a-z]:[/\\]*$/i.test(currentPath)
+                ? currentPath[0].toUpperCase() + '-drive'
+                : currentPath.split(/[/\\]+/).filter(Boolean).pop() || 'Archive';
             const outputZip = (currentPath.endsWith('/') || currentPath.endsWith('\\') ? currentPath : currentPath + '/') + folderName + '.zip';
 
             const toast = document.getElementById('uploadToast');
@@ -4539,134 +4537,119 @@
         }
 
         let currentEditingFilePath = '';
+        let codeRequestID = 0, codeLoaded = false, codeSaving = false;
 
         async function openCodeModal(path, name) {
+            const requestID = ++codeRequestID;
             currentEditingFilePath = path;
+            codeLoaded = false;
+            codeSaving = false;
             const modal = document.getElementById('codeModal');
             const title = document.getElementById('codeModalTitle');
             const textarea = document.getElementById('codeTextarea');
+            const status = document.getElementById('codeStatus');
+            const button = document.getElementById('btnSaveCode');
 
             title.innerText = name || path.split(/[/\\]+/).pop();
-            textarea.value = 'جارٍ تحميل محتوى الملف...';
+            textarea.value = '';
+            textarea.readOnly = true;
+            status.textContent = 'جارٍ تحميل محتوى الملف...';
+            button.disabled = true;
+            button.innerHTML = '<span>حفظ التعديلات</span>';
             modal.classList.add('active');
 
             try {
                 const res = await fetch(`/v1/file/content?path=${encodeURIComponent(path)}`);
                 const json = await res.json();
-                if (json.success === 200 && json.data !== undefined) {
-                    textarea.value = json.data;
-                } else {
-                    const rawRes = await fetch(`/v1/file?path=${encodeURIComponent(path)}`);
-                    textarea.value = await rawRes.text();
-                }
+                if (requestID !== codeRequestID || currentEditingFilePath !== path) return;
+                if (res.status === 415) throw Error('ترميز الملف غير مدعوم. حوّله إلى UTF-8 أو UTF-16 مع BOM قبل تحريره.');
+                if (!res.ok || json.success !== 200 || typeof json.data !== 'string') throw Error(json.message || 'تعذر قراءة محتوى الملف.');
+                textarea.value = json.data;
+                textarea.readOnly = false;
+                status.textContent = '';
+                codeLoaded = true;
+                button.disabled = false;
             } catch (err) {
-                textarea.value = 'تعذر قراءة محتوى الملف.';
+                if (requestID !== codeRequestID || currentEditingFilePath !== path) return;
+                status.textContent = err.message || 'تعذر قراءة محتوى الملف. أغلق النافذة وحاول مجددًا.';
             }
         }
 
         function closeCodeModal() {
             document.getElementById('codeModal').classList.remove('active');
             currentEditingFilePath = '';
+            ++codeRequestID;
+            codeLoaded = false;
+            codeSaving = false;
+            document.getElementById('btnSaveCode').disabled = true;
         }
 
         async function saveCodeContent() {
-            if (!currentEditingFilePath) return;
+            if (!currentEditingFilePath || !codeLoaded || codeSaving) return;
+            const path = currentEditingFilePath, requestID = codeRequestID;
             const textarea = document.getElementById('codeTextarea');
             const btn = document.getElementById('btnSaveCode');
             const originalText = btn.innerHTML;
+            codeSaving = true;
+            btn.disabled = true;
             btn.innerHTML = '<span>جارٍ الحفظ...</span>';
 
             try {
-                const res = await fetch('/v1/file/update', {
+                const res = await fetch('/v1/file', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        path: currentEditingFilePath,
+                        path,
                         content: textarea.value
                     })
                 });
                 const json = await res.json();
-                if (json.success === 200) {
+                if (requestID !== codeRequestID) return;
+                if (res.ok && json.success === 200) {
                     btn.innerHTML = '<span>تم الحفظ ✓</span>';
-                    setTimeout(() => { btn.innerHTML = originalText; }, 1500);
+                    setTimeout(() => { if (requestID === codeRequestID) btn.innerHTML = originalText; }, 1500);
                 } else {
                     alert('فشل حفظ التعديلات: ' + (json.message || ''));
                     btn.innerHTML = originalText;
                 }
             } catch (err) {
-                alert('خطأ في الاتصال بالخادم أثناء الحفظ');
-                btn.innerHTML = originalText;
+                if (requestID === codeRequestID) {
+                    alert('خطأ في الاتصال بالخادم أثناء الحفظ');
+                    btn.innerHTML = originalText;
+                }
+            } finally {
+                if (requestID === codeRequestID) {
+                    codeSaving = false;
+                    btn.disabled = !codeLoaded;
+                }
             }
         }
 
-        function copyCodeContent() {
-            const textarea = document.getElementById('codeTextarea');
-            textarea.select();
-            navigator.clipboard.writeText(textarea.value);
-            const btn = document.getElementById('btnCopyCode');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<span>تم النسخ ✓</span>';
-            setTimeout(() => { btn.innerHTML = originalText; }, 1500);
-        }
+        async function copyCodeContent(){const input=document.getElementById('codeTextarea');if(await copyText(input.value,input)){const b=document.getElementById('btnCopyCode'),old=b.textContent;b.textContent='تم النسخ ✓';setTimeout(()=>b.textContent=old,1500);}}
 
-        // =========================================================================
-        // Quick Share Modal Engine
-        // =========================================================================
-        function openShareModal(path, name, size = 0) {
-            currentShareItem = { path, name, size };
-            const modal = document.getElementById('shareModal');
-            document.getElementById('shareFileName').innerText = name;
-            document.getElementById('shareFileSize').innerText = size > 0 ? formatBytes(size) : 'رابط مشاركة مباشر';
-
-            let host = window.location.hostname;
-            if (host === 'localhost' || host === '127.0.0.1' || host === '') {
-                host = '192.168.1.35';
-            }
-            const port = window.location.port || '8080';
-            const shareUrl = `http://${host}:${port}/v1/file?path=${encodeURIComponent(path)}`;
-
-            document.getElementById('shareUrlInput').value = shareUrl;
-            document.getElementById('shareQrImg').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(shareUrl)}`;
-
-            modal.classList.add('active');
+        function openShareModal(path,name,size=0){
+         const origin=lanOrigin();if(!origin){alert('اتصل بالشبكة أو أدخل عنوان الجهاز في نافذة ربط الهاتف.');return;}
+         currentShareItem={path,name,size};document.getElementById('shareFileName').textContent=name;document.getElementById('shareFileSize').textContent=size>0?formatBytes(size):'رابط يتطلب تسجيل الدخول';
+         const url=origin+'/v1/file?path='+encodeURIComponent(path);
+         document.getElementById('shareUrlInput').value=url;document.getElementById('shareQrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encodeURIComponent(url);document.getElementById('shareModal').classList.add('active');
         }
 
         function closeShareModal() {
             document.getElementById('shareModal').classList.remove('active');
         }
 
-        function copyShareUrl() {
-            const input = document.getElementById('shareUrlInput');
-            input.select();
-            navigator.clipboard.writeText(input.value);
-            const btn = document.getElementById('btnCopyShare');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<span>تم النسخ ✓</span>';
-            setTimeout(() => { btn.innerHTML = originalText; }, 1500);
+        async function copyShareUrl(){const input=document.getElementById('shareUrlInput');if(await copyText(input.value,input)){const b=document.getElementById('btnCopyShare'),old=b.textContent;b.textContent='تم النسخ ✓';setTimeout(()=>b.textContent=old,1500);}}
+
+        function setupPhoneQRCode(){
+         const local=['localhost','127.0.0.1','[::1]',''].includes(window.location.hostname),host=local?(selectedLANHost||serverAddresses[0]||''):window.location.hostname;
+         document.getElementById('customIpInput').value=host;updateQRCodeUrl(host);
         }
 
-        // QR Code & Phone Linking
-        function setupPhoneQRCode() {
-            let host = window.location.hostname;
-            if (host === 'localhost' || host === '127.0.0.1' || host === '') {
-                host = '192.168.1.35';
-            }
-            const input = document.getElementById('customIpInput');
-            if (input) input.value = host;
-            updateQRCodeUrl(host);
-        }
-
-        function updateQRCodeUrl(host) {
-            host = host.trim() || '192.168.1.35';
-            const port = window.location.port || '8080';
-            const url = `http://${host}:${port}`;
-            const urlEl = document.getElementById('lanUrlText');
-            if (urlEl) urlEl.innerText = url;
-            const heroIp = document.getElementById('heroIpAddress');
-            if (heroIp) heroIp.innerText = `IP: ${host}:${port}`;
-            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
-            const qrImg = document.getElementById('qrImage');
-            if (qrImg) qrImg.src = qrUrl;
+        function updateQRCodeUrl(host){
+         host=host.trim();if(host&&!/^[a-zA-Z0-9.\-]+$/.test(host))return;selectedLANHost=host;
+         const origin=lanOrigin(),label=origin||'لا يوجد عنوان شبكة متاح';
+         document.getElementById('lanUrlText').textContent=label;document.getElementById('heroIpAddress').textContent=label;document.getElementById('netIpText').textContent=host||'غير متصل';
+         const qr=document.getElementById('qrImage');if(origin)qr.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encodeURIComponent(origin);else qr.removeAttribute('src');
         }
 
         function openPhoneModal() {
@@ -4695,10 +4678,12 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ path: newPath })
                 });
+                const result = await res.json();
+                if (!res.ok || result.success !== 200) throw Error(result.message || 'فشل إنشاء المجلد');
                 closeNewFolderModal();
                 loadCurrentFolder();
             } catch (err) {
-                alert('فشل إنشاء المجلد');
+                alert(err.message || 'فشل إنشاء المجلد');
             }
         }
 
