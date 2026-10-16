@@ -3267,6 +3267,7 @@
             if (tab !== 'timeline') {
                 ++timelineRequestID;
                 timelineAbortController?.abort();
+                resetTimelineVideoPreviews();
             }
             activeTab = tab;
             try {
@@ -4255,11 +4256,47 @@
         let activeTimelineFilter = 'all';
         let timelineRequestID = 0;
         let timelineAbortController = null;
+        let timelineVideoObserver = null;
+        let timelinePreviewVideos = [];
         let timelineOffset = 0;
         const timelinePageSize = 100;
 
+        function resetTimelineVideoPreviews() {
+            timelineVideoObserver?.disconnect();
+            timelineVideoObserver = null;
+            for (const video of timelinePreviewVideos) {
+                if (video.hasAttribute('src')) {
+                    video.pause();
+                    video.removeAttribute('src');
+                    video.load();
+                }
+            }
+            timelinePreviewVideos = [];
+        }
+
+        function observeTimelineVideoPreviews(container) {
+            timelinePreviewVideos = [...container.querySelectorAll('video[data-preview-src]')];
+            // On older browsers, cards remain clickable without preloading videos.
+            if (typeof IntersectionObserver === 'undefined' || !timelinePreviewVideos.length) return;
+            const pending = new Set(timelinePreviewVideos);
+            const observer = new IntersectionObserver(entries => {
+                if (timelineVideoObserver !== observer) return;
+                for (const entry of entries) {
+                    if (!entry.isIntersecting || !pending.delete(entry.target)) continue;
+                    const video = entry.target;
+                    observer.unobserve(video);
+                    video.preload = 'metadata';
+                    video.src = video.dataset.previewSrc;
+                    video.load();
+                }
+            }, {rootMargin: '160px', threshold: 0.01});
+            timelineVideoObserver = observer;
+            for (const video of timelinePreviewVideos) observer.observe(video);
+        }
+
         async function loadTimeline(offset = 0) {
             const requestID = ++timelineRequestID, filter = activeTimelineFilter;
+            resetTimelineVideoPreviews();
             timelineAbortController?.abort();
             const controller = new AbortController();
             timelineAbortController = controller;
@@ -4330,7 +4367,7 @@
 
 
                         const mediaPreview = item.is_video 
-                            ? `<video src="${fileUrl}#t=0.5" preload="metadata" muted playsinline style="width:100%; height:100%; object-fit:cover; pointer-events:none; display:block;"></video>`
+                            ? `<video data-preview-src="${fileUrl}#t=0.5" preload="none" muted playsinline style="width:100%; height:100%; object-fit:cover; pointer-events:none; display:block;"></video>`
                             : `<img src="${fileUrl}" loading="lazy" alt="${escapeHTML(item.name)}">`;
 
                         html += `
@@ -4352,6 +4389,7 @@
                 });
 
                 container.innerHTML = html;
+                observeTimelineVideoPreviews(container);
                 pagination.style.display = 'flex';
                 document.getElementById('timelinePrevious').disabled = offset === 0;
                 document.getElementById('timelineNext').disabled = !data.has_more;

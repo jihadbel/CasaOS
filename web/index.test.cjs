@@ -14,7 +14,7 @@ function fixture() {
       innerHTML: '', innerText: '', textContent: '', value: '',
       append() {}, replaceChildren(...nodes) { this.children = nodes; },
       addEventListener() {}, removeAttribute() {}, focus() {}, select() {},
-      querySelector() { return element(); }
+      querySelector() { return element(); }, querySelectorAll() { return []; }
     };
   }
   const document = {
@@ -325,6 +325,45 @@ test('timeline aborts obsolete scans when changing pages or leaving the gallery'
   assert.equal(signals[1].aborted,false);
   f.run('switchMainTab("files",false)');
   assert.equal(signals[1].aborted,true);
+});
+
+test('timeline video cards do not start metadata requests eagerly', async () => {
+  const f=fixture();
+  f.sandbox.fetch=async()=>({ok:true,json:async()=>({success:true,total:50,timeline:[{period:'test',items:Array.from({length:50},(_,i)=>({name:`${i}.mp4`,path:`C:/${i}.mp4`,is_video:true,size:1,date_str:'2026-10-16'}))}]})});
+  await f.run('loadTimeline()');
+  const html=f.elements.get('timelineContainer').innerHTML;
+  assert.equal((html.match(/<video /g)||[]).length,50);
+  assert.equal((html.match(/preload="none"/g)||[]).length,50);
+  assert.doesNotMatch(html,/<video\s+src=/);
+  assert.equal((html.match(/data-preview-src=/g)||[]).length,50);
+});
+
+test('timeline videos load only near the viewport and cancel when leaving', () => {
+  const f=fixture();let callback,observer;const watched=[],unwatched=[];
+  f.sandbox.IntersectionObserver=class {
+    constructor(cb) {callback=cb;observer=this;this.disconnected=false;}
+    observe(video) {watched.push(video);}
+    unobserve(video) {unwatched.push(video);}
+    disconnect() {this.disconnected=true;}
+  };
+  const makeVideo=i=>({dataset:{previewSrc:`/v1/file?path=${i}.mp4#t=0.5`},loads:0,pauses:0,
+    load(){this.loads++;},pause(){this.pauses++;},hasAttribute(name){return name==='src'&&this.src!==undefined;},removeAttribute(name){delete this[name];}});
+  const videos=[makeVideo(1),makeVideo(2)];
+  f.sandbox.previewContainer={querySelectorAll(){return videos;}};
+  f.run('observeTimelineVideoPreviews(previewContainer)');
+  assert.equal(watched.length,2);
+  assert.equal(videos[0].src,undefined);
+  callback([{target:videos[0],isIntersecting:false},{target:videos[1],isIntersecting:true}]);
+  assert.equal(videos[0].src,undefined);
+  assert.equal(videos[1].src,videos[1].dataset.previewSrc);
+  assert.equal(videos[1].loads,1);
+  assert.deepEqual(unwatched,[videos[1]]);
+  f.run('switchMainTab("files",false)');
+  assert.equal(observer.disconnected,true);
+  assert.equal(videos[1].src,undefined);
+  assert.equal(videos[1].pauses,1);
+  callback([{target:videos[0],isIntersecting:true}]);
+  assert.equal(videos[0].src,undefined);
 });
 
 test('creating a folder reports server errors and keeps the input available', async () => {
