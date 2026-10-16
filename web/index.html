@@ -2552,6 +2552,12 @@
                 <div id="timelineContainer">
                     <!-- Dynamic timeline month sections injected here -->
                 </div>
+                <p id="timelineScanNotice" role="status" style="display: none; color: var(--text-muted);"></p>
+                <div id="timelinePagination" style="display: none; gap: 0.75rem; align-items: center; margin-top: 1rem;">
+                    <button id="timelinePrevious" class="btn btn-secondary" onclick="loadTimeline(Math.max(0,timelineOffset-timelinePageSize))">السابق</button>
+                    <span id="timelinePageLabel"></span>
+                    <button id="timelineNext" class="btn btn-secondary" onclick="loadTimeline(timelineOffset+timelinePageSize)">التالي</button>
+                </div>
 
                 <!-- Empty Timeline State -->
                 <div class="state-container" id="timelineEmptyState" style="display: none;">
@@ -3258,7 +3264,10 @@
 
         // View Switching (Dashboard, Files, Timeline, Trash)
         function switchMainTab(tab, loadContent = true) {
-            if (tab !== 'timeline') ++timelineRequestID;
+            if (tab !== 'timeline') {
+                ++timelineRequestID;
+                timelineAbortController?.abort();
+            }
             activeTab = tab;
             try {
                 if (window.location.hash !== '#' + tab) {
@@ -4245,11 +4254,21 @@
         // =========================================================================
         let activeTimelineFilter = 'all';
         let timelineRequestID = 0;
+        let timelineAbortController = null;
+        let timelineOffset = 0;
+        const timelinePageSize = 100;
 
-        async function loadTimeline() {
+        async function loadTimeline(offset = 0) {
             const requestID = ++timelineRequestID, filter = activeTimelineFilter;
+            timelineAbortController?.abort();
+            const controller = new AbortController();
+            timelineAbortController = controller;
             const container = document.getElementById('timelineContainer');
             const empty = document.getElementById('timelineEmptyState');
+            const pagination = document.getElementById('timelinePagination');
+            const notice = document.getElementById('timelineScanNotice');
+            pagination.style.display = 'none';
+            notice.style.display = 'none';
             container.innerHTML = `
                 <div class="state-container">
                     <div class="storage-fill" style="width: 36px; height: 36px; border-radius: 50%; border: 3px solid #e2e8f0; border-top-color: var(--primary); animation: spin 0.8s linear infinite;"></div>
@@ -4259,20 +4278,33 @@
             empty.style.display = 'none';
 
             try {
-                const res = await fetch(`/api/media/timeline?type=${filter}`);
+                const res = await fetch(`/api/media/timeline?type=${filter}&limit=${timelinePageSize}&offset=${offset}`, {signal: controller.signal});
                 const data = await res.json();
                 if (requestID !== timelineRequestID || filter !== activeTimelineFilter) return;
 
                 if (!res.ok || !data.success) throw Error(data.error || 'تعذر تحميل المعرض');
+                timelineOffset = offset;
+                if (data.truncated) {
+                    notice.textContent = 'هذه نتائج جزئية ضمن حدود فحص المعرض. اختر مجلدًا أصغر في إعدادات التخزين لعرض بقية الوسائط.';
+                    notice.style.display = 'block';
+                }
                 mediaPlaylist = [];
                 if (!data.timeline || data.timeline.length === 0) {
                     container.innerHTML = '';
                     empty.style.display = 'flex';
-                    document.getElementById('timelineCountBadge').innerText = '0 عنصر';
+                    document.getElementById('timelineCountBadge').innerText = `${data.total || 0} عنصر`;
+                    if (offset > 0) {
+                        empty.style.display = 'none';
+                        container.textContent = 'لا توجد عناصر في هذه الصفحة. ارجع إلى الصفحة السابقة أو حدّث المعرض.';
+                        pagination.style.display = 'flex';
+                        document.getElementById('timelinePrevious').disabled = false;
+                        document.getElementById('timelineNext').disabled = true;
+                        document.getElementById('timelinePageLabel').textContent = `صفحة ${Math.floor(offset / timelinePageSize) + 1}`;
+                    }
                     return;
                 }
 
-                document.getElementById('timelineCountBadge').innerText = `${data.total} صورة وفيديو`;
+                document.getElementById('timelineCountBadge').innerText = `${data.total}${data.truncated ? '+' : ''} صورة وفيديو`;
 
                 mediaPlaylist = [];
                 let totalIdx = 0;
@@ -4320,6 +4352,10 @@
                 });
 
                 container.innerHTML = html;
+                pagination.style.display = 'flex';
+                document.getElementById('timelinePrevious').disabled = offset === 0;
+                document.getElementById('timelineNext').disabled = !data.has_more;
+                document.getElementById('timelinePageLabel').textContent = `${offset + 1}–${offset + mediaPlaylist.length} من ${data.total}`;
             } catch (err) {
                 if (requestID !== timelineRequestID) return;
                 console.error("Timeline load error", err);

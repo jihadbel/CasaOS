@@ -1,17 +1,19 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/IceWhaleTech/CasaOS/internal/safefs"
+	"github.com/IceWhaleTech/CasaOS/pkg/utils/file"
 )
 
 type MediaItem struct {
@@ -50,6 +52,17 @@ func handleMediaTimeline(w http.ResponseWriter, r *http.Request) {
 		apiError(w, 405, errors.New("method not allowed"))
 		return
 	}
+	limit, offset := 100, 0
+	for name, target := range map[string]*int{"limit": &limit, "offset": &offset} {
+		if raw := r.URL.Query().Get(name); raw != "" {
+			value, err := strconv.Atoi(raw)
+			if err != nil || value < 0 || name == "limit" && (value == 0 || value > 200) || name == "offset" && value > maxTimelineItems {
+				apiError(w, 400, fmt.Errorf("invalid %s", name))
+				return
+			}
+			*target = value
+		}
+	}
 
 	// Scan folders (default to Photos, Videos, Mobile_Uploads)
 	settings, _, err := readStorageSettings()
@@ -65,94 +78,46 @@ func handleMediaTimeline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filterType := r.URL.Query().Get("type") // "all", "photos", "videos"
-
-	var allMedia []MediaItem
-
-	photoExts := map[string]bool{
-		".jpg": true, ".jpeg": true, ".png": true, ".webp": true,
-		".gif": true, ".bmp": true, ".svg": true, ".heic": true, ".heif": true,
-		".avif": true, ".raw": true, ".ico": true, ".tiff": true, ".psd": true, ".ai": true,
+	if filterType != "" && filterType != "all" && filterType != "photos" && filterType != "videos" {
+		apiError(w, 400, errors.New("invalid media type"))
+		return
 	}
-	videoExts := map[string]bool{
-		".mp4": true, ".mkv": true, ".webm": true, ".mov": true,
-		".avi": true, ".flv": true, ".wmv": true, ".3gp": true,
-		".m4v": true, ".mpeg": true,
-	}
-
-	seen := map[string]bool{}
-	for _, dir := range scanDirs {
-		// Also reject roots inside an internal directory when explicitly selected.
-		if hiddenMediaPath(dir) {
-			continue
-		}
-		if _, err := os.Stat(dir); os.IsNotExist(err) {
-			continue
-		}
-
-		_ = filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
-			if err != nil || info == nil {
-				return nil
-			}
-			if info.IsDir() {
-				if hiddenMediaPath(p) {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if strings.HasPrefix(info.Name(), ".") {
-				return nil
-			}
-			if !info.Mode().IsRegular() || seen[filepath.Clean(p)] {
-				return nil
-			}
-			seen[filepath.Clean(p)] = true
-
-			ext := strings.ToLower(filepath.Ext(info.Name()))
-			isPhoto := photoExts[ext]
-			isVideo := videoExts[ext]
-
-			if !isPhoto && !isVideo {
-				return nil
-			}
-
-			if filterType == "photos" && !isPhoto {
-				return nil
-			}
-			if filterType == "videos" && !isVideo {
-				return nil
-			}
-
-			monthKey := fmt.Sprintf("%04d-%02d", info.ModTime().Year(), info.ModTime().Month())
-			allMedia = append(allMedia, MediaItem{
-				Name:     info.Name(),
-				Path:     filepath.ToSlash(p),
-				Size:     info.Size(),
-				ModTime:  info.ModTime(),
-				DateStr:  info.ModTime().Format("2006-01-02"),
-				MonthKey: monthKey,
-				IsVideo:  isVideo,
-			})
-			return nil
-		})
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	allMedia, truncated := scanTimeline(ctx, scanDirs, filterType, maxTimelineItems, maxTimelineEntries)
+	if r.Context().Err() != nil {
+		return
 	}
 
 	// Sort newest first
 	sort.Slice(allMedia, func(i, j int) bool {
+		if allMedia[i].ModTime.Equal(allMedia[j].ModTime) {
+			return allMedia[i].Path < allMedia[j].Path
+		}
 		return allMedia[i].ModTime.After(allMedia[j].ModTime)
 	})
+	total := len(allMedia)
+	start := offset
+	if start > total {
+		start = total
+	}
+	end := start + limit
+	if end > total {
+		end = total
+	}
 
 	// Group by Year-Month
 	groupsMap := make(map[string][]MediaItem)
 	var groupKeys []string
 
-	for _, item := range allMedia {
+	for _, item := range allMedia[start:end] {
 		if _, exists := groupsMap[item.MonthKey]; !exists {
 			groupKeys = append(groupKeys, item.MonthKey)
 		}
 		groupsMap[item.MonthKey] = append(groupsMap[item.MonthKey], item)
 	}
 
-	var timeline []TimelineGroup
+	timeline := []TimelineGroup{}
 	for _, key := range groupKeys {
 		items := groupsMap[key]
 		if len(items) == 0 {
@@ -167,14 +132,23 @@ func handleMediaTimeline(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":  true,
-		"total":    len(allMedia),
-		"timeline": timeline,
+		"success":   true,
+		"total":     total,
+		"offset":    offset,
+		"limit":     limit,
+		"has_more":  end < total,
+		"truncated": truncated,
+		"timeline":  timeline,
 	})
 }
 
 func hiddenMediaPath(path string) bool {
+	if file.InternalStoragePath(path) {
+		return true
+	}
 	clean, err := filepath.Abs(path)
 	if err != nil {
 		return true

@@ -23,7 +23,7 @@ function fixture() {
     getElementById(id) { if (!elements.has(id)) elements.set(id, element()); return elements.get(id); }
   };
   const sandbox = {
-    document, console, URL, navigator: {}, alert: text => alerts.push(text), confirm: () => true,
+    document, console, URL, AbortController, navigator: {}, alert: text => alerts.push(text), confirm: () => true,
     setTimeout() {}, setInterval() {}, history: { replaceState() {} },
     window: {
       addEventListener() {}, isSecureContext: false,
@@ -272,6 +272,59 @@ test('timeline ignores obsolete filter responses and requests after leaving it',
   f.run('switchMainTab("files",false)');
   releaseOld();await pending;
   assert.equal(f.run('mediaPlaylist[0].name'),'new.mp4');
+});
+
+test('timeline pages replace media, expose partial scans, and reset on filter change', async () => {
+  const f=fixture();const requests=[];
+  f.sandbox.fetch=async url=>{
+    requests.push(url);
+    const offset=Number(new URL(url,'http://localhost').searchParams.get('offset'));
+    return {ok:true,json:async()=>({success:true,total:201,has_more:offset<200,truncated:true,timeline:[{period:'test',items:[{name:`page-${offset}.jpg`,path:`C:/page-${offset}.jpg`,is_video:false,date_str:'2026-10-16',size:1}]}]})};
+  };
+  await f.run('loadTimeline()');
+  assert.match(requests[0],/limit=100&offset=0/);
+  assert.equal(f.elements.get('timelinePrevious').disabled,true);
+  assert.equal(f.elements.get('timelineNext').disabled,false);
+  assert.equal(f.elements.get('timelineScanNotice').style.display,'block');
+  await f.run('loadTimeline(100)');
+  assert.equal(f.run('timelineOffset'),100);
+  assert.equal(f.run('mediaPlaylist.length'),1);
+  assert.equal(f.run('mediaPlaylist[0].name'),'page-100.jpg');
+  assert.equal(f.elements.get('timelinePrevious').disabled,false);
+  await f.run('loadTimeline(200)');
+  assert.equal(f.elements.get('timelineNext').disabled,true);
+  f.run('setTimelineFilter("photos")');
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.match(requests.at(-1),/type=photos&limit=100&offset=0/);
+  assert.equal(f.run('timelineOffset'),0);
+});
+
+test('timeline ignores a stale response from another page', async () => {
+  const f=fixture();let oldPage;
+  f.sandbox.fetch=url=>{
+    const offset=Number(new URL(url,'http://localhost').searchParams.get('offset'));
+    const result={ok:true,json:async()=>({success:true,total:200,has_more:offset===0,timeline:[{period:'test',items:[{name:`page-${offset}.jpg`,path:`C:/page-${offset}.jpg`,size:1}]}]})};
+    return offset===0?new Promise(resolve=>{oldPage=()=>resolve(result);}):Promise.resolve(result);
+  };
+  const old=f.run('loadTimeline()');
+  await f.run('loadTimeline(100)');
+  oldPage();await old;
+  assert.equal(f.run('timelineOffset'),100);
+  assert.equal(f.run('mediaPlaylist[0].name'),'page-100.jpg');
+});
+
+test('timeline aborts obsolete scans when changing pages or leaving the gallery', async () => {
+  const f=fixture();const signals=[];
+  f.sandbox.fetch=async (url,options)=>{
+    if(options?.signal)signals.push(options.signal);
+    return {ok:true,json:async()=>({success:true,total:0,timeline:[]})};
+  };
+  await f.run('loadTimeline()');
+  await f.run('loadTimeline(100)');
+  assert.equal(signals[0].aborted,true);
+  assert.equal(signals[1].aborted,false);
+  f.run('switchMainTab("files",false)');
+  assert.equal(signals[1].aborted,true);
 });
 
 test('creating a folder reports server errors and keeps the input available', async () => {
