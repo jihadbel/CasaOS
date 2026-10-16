@@ -1,8 +1,9 @@
 package service
 
 import (
-	"github.com/IceWhaleTech/CasaOS-Common/utils/port"
-	"github.com/IceWhaleTech/CasaOS-Common/utils/systemctl"
+	"github.com/shirou/gopsutil/v3/net"
+	"sort"
+	"syscall"
 )
 
 type HealthService interface {
@@ -12,32 +13,34 @@ type HealthService interface {
 
 type service struct{}
 
-func (s *service) Services() (map[bool]*[]string, error) {
-	services, err := systemctl.ListServices("casaos*")
+func (s *service) Ports() ([]int, []int, error) {
+	connections, err := net.Connections("all")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-
-	var running, notRunning []string
-
-	for _, service := range services {
-		if service.Running {
-			running = append(running, service.Name)
-		} else {
-			notRunning = append(notRunning, service.Name)
+	tcp, udp := map[int]bool{}, map[int]bool{}
+	for _, connection := range connections {
+		port := int(connection.Laddr.Port)
+		if port == 0 {
+			continue
+		}
+		if connection.Type == syscall.SOCK_STREAM {
+			tcp[port] = true
+		}
+		if connection.Type == syscall.SOCK_DGRAM {
+			udp[port] = true
 		}
 	}
-
-	result := map[bool]*[]string{
-		true:  &running,
-		false: &notRunning,
+	tcpPorts, udpPorts := make([]int, 0, len(tcp)), make([]int, 0, len(udp))
+	for port := range tcp {
+		tcpPorts = append(tcpPorts, port)
 	}
-
-	return result, nil
-}
-
-func (s *service) Ports() ([]int, []int, error) {
-	return port.ListPortsInUse()
+	for port := range udp {
+		udpPorts = append(udpPorts, port)
+	}
+	sort.Ints(tcpPorts)
+	sort.Ints(udpPorts)
+	return tcpPorts, udpPorts, nil
 }
 
 func NewHealthService() HealthService {

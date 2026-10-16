@@ -20,20 +20,21 @@ type SharesService interface {
 	GetSharesList() (shares []model2.SharesDBModel)
 	GetSharesByPath(path string) (shares []model2.SharesDBModel)
 	GetSharesByName(name string) (shares []model2.SharesDBModel)
-	CreateShare(share model2.SharesDBModel)
-	DeleteShare(id string)
-	UpdateConfigFile()
+	CreateShare(share model2.SharesDBModel) error
+	DeleteShare(id string) error
+	UpdateConfigFile() error
 	InitSambaConfig()
-	DeleteShareByPath(path string)
+	DeleteShareByPath(path string) error
 }
 
 type sharesStruct struct {
 	db *gorm.DB
 }
 
-func (s *sharesStruct) DeleteShareByPath(path string) {
-	s.db.Where("path LIKE ?", path+"%").Delete(&model.SharesDBModel{})
-	s.UpdateConfigFile()
+func (s *sharesStruct) DeleteShareByPath(path string) error {
+	return s.changeShares(func(db *gorm.DB) error {
+		return db.Where("path LIKE ?", path+"%").Delete(&model.SharesDBModel{}).Error
+	})
 }
 
 func (s *sharesStruct) GetSharesByName(name string) (shares []model2.SharesDBModel) {
@@ -51,15 +52,22 @@ func (s *sharesStruct) GetSharesList() (shares []model2.SharesDBModel) {
 	return
 }
 
-func (s *sharesStruct) CreateShare(share model2.SharesDBModel) {
-	s.db.Create(&share)
+func (s *sharesStruct) CreateShare(share model2.SharesDBModel) error {
 	s.InitSambaConfig()
-	s.UpdateConfigFile()
+	return s.changeShares(func(db *gorm.DB) error { return db.Create(&share).Error })
 }
 
-func (s *sharesStruct) DeleteShare(id string) {
-	s.db.Where("id= ?", id).Delete(&model.SharesDBModel{})
-	s.UpdateConfigFile()
+func (s *sharesStruct) DeleteShare(id string) error {
+	return s.changeShares(func(db *gorm.DB) error { return db.Where("id= ?", id).Delete(&model.SharesDBModel{}).Error })
+}
+
+func (s *sharesStruct) changeShares(change func(*gorm.DB) error) error {
+	return s.db.Transaction(func(db *gorm.DB) error {
+		if err := change(db); err != nil {
+			return err
+		}
+		return (&sharesStruct{db: db}).UpdateConfigFile()
+	})
 }
 
 func NewSharesService(db *gorm.DB) SharesService {

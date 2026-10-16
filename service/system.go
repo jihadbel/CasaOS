@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-
 	"github.com/IceWhaleTech/CasaOS-Common/utils/file"
 	"github.com/IceWhaleTech/CasaOS-Common/utils/logger"
 	"github.com/IceWhaleTech/CasaOS/common"
@@ -197,7 +196,9 @@ func (c *systemService) MkdirAll(path string) (int, error) {
 		return common_err.DIR_ALREADY_EXISTS, nil
 	} else {
 		if os.IsNotExist(err) {
-			os.MkdirAll(path, os.ModePerm)
+			if err := os.MkdirAll(path, os.ModePerm); err != nil {
+				return common_err.SERVICE_ERROR, err
+			}
 			return common_err.SUCCESS, nil
 		} else if strings.Contains(err.Error(), ": not a directory") {
 			return common_err.FILE_OR_DIR_EXISTS, err
@@ -228,7 +229,9 @@ func (c *systemService) CreateFile(path string) (int, error) {
 		return common_err.FILE_OR_DIR_EXISTS, nil
 	} else {
 		if os.IsNotExist(err) {
-			file.CreateFile(path)
+			if err := file.CreateFile(path); err != nil {
+				return common_err.SERVICE_ERROR, err
+			}
 			return common_err.SUCCESS, nil
 		}
 	}
@@ -325,15 +328,30 @@ func getWindowsDrives() []model.Path {
 
 func (c *systemService) GetDirPath(path string) ([]model.Path, error) {
 	if runtime.GOOS == "windows" {
+		unc := strings.TrimPrefix(strings.ReplaceAll(path, "/", "\\"), `\\`)
+		if (strings.HasPrefix(path, `\\`) || strings.HasPrefix(path, "//")) && unc != "" && !strings.Contains(strings.TrimSuffix(unc, "\\"), "\\") {
+			host := strings.TrimSuffix(unc, "\\")
+			for _, conn := range MyService.Connections().GetConnectionByHost(host) {
+				details := MyService.Connections().GetConnectionByID(fmt.Sprint(conn.ID))
+				entries := []model.Path{}
+				for _, share := range strings.Split(details.Directories, ",") {
+					if share != "" {
+						entries = append(entries, model.Path{Name: share, Path: SMBSharePath(host, share), IsDir: true})
+					}
+				}
+				return entries, nil
+			}
+			return nil, fmt.Errorf("SMB host is not connected: %s", host)
+		}
 		if path == "/DATA" || path == "DATA" || path == "/DATA/" {
-			path = "C:\\CasaOS\\DATA"
+			path = config.DefaultStorageRoot()
 			os.MkdirAll(path, 0o755)
 		} else if path == "" || path == "/" || path == "/drives" {
 			// List all available Windows drives plus quick DATA shortcut
 			drives := getWindowsDrives()
 			dataFolder := model.Path{
 				Name:  "DATA (Default Storage)",
-				Path:  "C:\\CasaOS\\DATA",
+				Path:  config.DefaultStorageRoot(),
 				IsDir: true,
 				Date:  time.Now(),
 			}
@@ -358,6 +376,9 @@ func (c *systemService) GetDirPath(path string) ([]model.Path, error) {
 	dirs := []model.Path{}
 	if len(path) > 0 {
 		for _, l := range ls {
+			if l.Name() == ".CasaOS-RecycleBin" || l.Name() == "RecycleBin" && sameStoragePath(filepath.Join(path, l.Name()), filepath.Join(config.DefaultStorageRoot(), "RecycleBin")) {
+				continue
+			}
 			filePath := filepath.Join(path, l.Name())
 			link, err := filepath.EvalSymlinks(filePath)
 			if err != nil {
@@ -370,8 +391,9 @@ func (c *systemService) GetDirPath(path string) ([]model.Path, error) {
 			}
 			temp := model.Path{Name: l.Name(), Path: filePath, IsDir: l.IsDir(), Date: tempFile.ModTime(), Size: tempFile.Size()}
 			if filePath != link {
-				file, _ := os.Stat(link)
-				temp.IsDir = file.IsDir()
+				if linked, err := os.Stat(link); err == nil {
+					temp.IsDir = linked.IsDir()
+				}
 			}
 			dirs = append(dirs, temp)
 		}
@@ -379,6 +401,10 @@ func (c *systemService) GetDirPath(path string) ([]model.Path, error) {
 		dirs = append(dirs, model.Path{Name: "DATA", Path: "/DATA/", IsDir: true, Date: time.Now()})
 	}
 	return dirs, nil
+}
+
+func sameStoragePath(a, b string) bool {
+	return strings.EqualFold(filepath.Clean(a), filepath.Clean(b))
 }
 
 func (c *systemService) GetCpuInfo() []cpu.InfoStat {
@@ -413,7 +439,6 @@ func (c *systemService) GetNetInfo() []net.IOCountersStat {
 	parts, _ := net.IOCounters(true)
 	return parts
 }
-
 
 func (s *systemService) UpAppOrderFile(str, id string) {
 	file.WriteToPath([]byte(str), config.AppInfo.DBPath+"/"+id, "app_order.json")

@@ -22,6 +22,7 @@ import (
 	"github.com/IceWhaleTech/CasaOS/common"
 	"github.com/IceWhaleTech/CasaOS/pkg/cache"
 	"github.com/IceWhaleTech/CasaOS/pkg/config"
+	"github.com/IceWhaleTech/CasaOS/pkg/localauth"
 	"github.com/IceWhaleTech/CasaOS/pkg/sqlite"
 	"github.com/IceWhaleTech/CasaOS/pkg/utils/file"
 	"github.com/IceWhaleTech/CasaOS/route"
@@ -60,9 +61,11 @@ var (
 	configFlag  = flag.String("c", "", "config address")
 	dbFlag      = flag.String("db", "", "db path")
 	versionFlag = flag.Bool("v", false, "version")
+	tlsCertFlag = flag.String("tls-cert", "", "HTTPS certificate PEM file")
+	tlsKeyFlag  = flag.String("tls-key", "", "HTTPS private key PEM file")
 )
 
-func init() {
+func initialize() {
 	flag.Parse()
 	if *versionFlag {
 		fmt.Println("v" + common.VERSION)
@@ -75,17 +78,20 @@ func init() {
 	config.InitSetup(*configFlag, _confSample)
 
 	if runtime.GOOS == "windows" {
-		_ = os.MkdirAll(`C:\CasaOS\DATA\Photos`, os.ModePerm)
-		_ = os.MkdirAll(`C:\CasaOS\DATA\Videos`, os.ModePerm)
-		_ = os.MkdirAll(`C:\CasaOS\DATA\Documents`, os.ModePerm)
-		_ = os.MkdirAll(`C:\CasaOS\DATA\Music`, os.ModePerm)
-		_ = os.MkdirAll(`C:\CasaOS\DATA\Applications`, os.ModePerm)
-		_ = os.MkdirAll(`C:\CasaOS\DATA\Archives`, os.ModePerm)
-		_ = os.MkdirAll(`C:\CasaOS\DATA\Mobile_Uploads`, os.ModePerm)
-		_ = os.MkdirAll(`C:\CasaOS\DATA\RecycleBin`, os.ModePerm)
-		initTrashSystem()
-		_ = os.MkdirAll(config.CommonInfo.RuntimePath, os.ModePerm)
-		_ = os.MkdirAll(config.AppInfo.LogPath, os.ModePerm)
+		for _, folder := range []string{"Photos", "Videos", "Documents", "Music", "Applications", "Archives", "Mobile_Uploads"} {
+			if err := os.MkdirAll(filepath.Join(config.DefaultStorageRoot(), folder), 0755); err != nil {
+				panic(err)
+			}
+		}
+		if err := initTrashSystem(); err != nil {
+			panic(err)
+		}
+		if err := os.MkdirAll(config.CommonInfo.RuntimePath, 0700); err != nil {
+			panic(err)
+		}
+		if err := os.MkdirAll(config.AppInfo.LogPath, 0755); err != nil {
+			panic(err)
+		}
 	}
 
 	logger.LogInit(config.AppInfo.LogPath, config.AppInfo.LogSaveName, config.AppInfo.LogFileExt)
@@ -122,8 +128,16 @@ func init() {
 // @name Authorization
 // @BasePath /v1
 func main() {
+	initialize()
 	if *versionFlag {
 		return
+	}
+	if (*tlsCertFlag == "") != (*tlsKeyFlag == "") {
+		panic("both -tls-cert and -tls-key are required for HTTPS")
+	}
+	scheme := "http"
+	if *tlsCertFlag != "" {
+		scheme = "https"
 	}
 	v1Router := route.InitV1Router()
 
@@ -160,11 +174,14 @@ func main() {
 	}
 
 	listener, err := net.Listen("tcp", net.JoinHostPort(bindHost, portToListen))
-	if err != nil {
+	if err != nil && runtime.GOOS != "windows" {
 		listener, err = net.Listen("tcp", net.JoinHostPort(bindHost, "0"))
-		if err != nil {
-			panic(err)
-		}
+	}
+	if err != nil {
+		panic(err)
+	}
+	if runtime.GOOS == "windows" {
+		_, config.ServerInfo.HttpPort, _ = net.SplitHostPort(listener.Addr().String())
 	}
 	routers := []string{
 		"/v1/sys",
@@ -215,7 +232,7 @@ func main() {
 	go func() {
 		time.Sleep(time.Second * 2)
 		// v0.3.6
-		if config.ServerInfo.HttpPort != "" {
+		if runtime.GOOS != "windows" && config.ServerInfo.HttpPort != "" {
 			changePort := model.ChangePortRequest{}
 			changePort.Port = config.ServerInfo.HttpPort
 			err := service.MyService.Gateway().ChangePort(&changePort)
@@ -227,7 +244,7 @@ func main() {
 	}()
 
 	urlFilePath := filepath.Join(config.CommonInfo.RuntimePath, "casaos.url")
-	if err := file.CreateFileAndWriteContent(urlFilePath, "http://"+listener.Addr().String()); err != nil {
+	if err := file.CreateFileAndWriteContent(urlFilePath, scheme+"://"+listener.Addr().String()); err != nil {
 		logger.Error("error when creating address file", zap.Error(err),
 			zap.Any("address", listener.Addr().String()),
 			zap.Any("filepath", urlFilePath),
@@ -254,42 +271,20 @@ func main() {
 	// })
 	// go http.ListenAndServe(":8081", nil)
 
-	mainHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p := r.URL.Path
-		if strings.HasPrefix(p, "/v1") || strings.HasPrefix(p, "/v2") || strings.HasPrefix(p, "/v3") || strings.HasPrefix(p, "/doc") || strings.HasPrefix(p, "/ping") {
-			mux.ServeHTTP(w, r)
-			return
-		}
-		if strings.HasPrefix(p, "/api/zip") {
-			handleZip(w, r)
-			return
-		}
-		if strings.HasPrefix(p, "/api/unzip") {
-			handleUnzip(w, r)
-			return
-		}
-		if strings.HasPrefix(p, "/api/trash") {
-			handleTrash(w, r)
-			return
-		}
-		if strings.HasPrefix(p, "/api/media/timeline") {
-			handleMediaTimeline(w, r)
-			return
-		}
-		// Serve Web Dashboard (try live file first for instant updates, fallback to embedded)
-		var htmlContent []byte
-		if content, err := os.ReadFile("web/index.html"); err == nil {
-			htmlContent = content
-		} else {
-			htmlContent = []byte(_webIndexHTML)
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-		w.Write(htmlContent)
-	})
+	mainHandler := dashboardHandler(mux)
 
+	var handler http.Handler = mainHandler
+	if runtime.GOOS == "windows" {
+		authDir := filepath.Join(config.AppInfo.UserDataPath, "auth")
+		auth, err := localauth.New(authDir)
+		if err != nil {
+			panic(fmt.Errorf("initialize administrator login: %w", err))
+		}
+		handler = auth.Middleware(mainHandler)
+		fmt.Printf("  Initial administrator password file: %s\n", filepath.Join(authDir, "initial-password.txt"))
+	}
 	s := &http.Server{
-		Handler:           mainHandler,
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -298,17 +293,65 @@ func main() {
 		fmt.Println("\n================================================================")
 		fmt.Println("  CasaOS Windows Home Cloud File & Photo Server is Running!")
 		fmt.Println("================================================================")
-		fmt.Printf("  💻 Local Dashboard  : http://localhost:%s\n", port)
+		fmt.Printf("  💻 Local Dashboard  : %s://localhost:%s\n", scheme, port)
 		for _, ip := range ip_helper.GetDeviceAllIPv4() {
-			fmt.Printf("  📱 Mobile / Wi-Fi   : http://%s:%s\n", ip, port)
+			fmt.Printf("  📱 Mobile / Wi-Fi   : %s://%s:%s\n", scheme, ip, port)
 		}
-		fmt.Println("  📁 Default Storage  : C:\\CasaOS\\DATA")
-		fmt.Println("================================================================\n")
+		fmt.Println("  📁 Default Storage  :", config.DefaultStorageRoot())
+		fmt.Println("================================================================")
 	}
 
 	logger.Info("CasaOS main service is listening...", zap.Any("address", listener.Addr().String()))
-	err = s.Serve(listener)
+	if *tlsCertFlag != "" {
+		err = s.ServeTLS(listener, *tlsCertFlag, *tlsKeyFlag)
+	} else {
+		err = s.Serve(listener)
+	}
 	if err != nil {
 		panic(err)
 	}
+}
+
+func dashboardHandler(mux http.Handler) http.Handler {
+	return route.AuthenticateExtensions(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := r.URL.Path
+		if strings.HasPrefix(p, "/v1") || strings.HasPrefix(p, "/v2") || strings.HasPrefix(p, "/v3") || strings.HasPrefix(p, "/doc") || strings.HasPrefix(p, "/ping") {
+			mux.ServeHTTP(w, r)
+			return
+		}
+		if p == "/api/zip" {
+			handleZip(w, r)
+			return
+		}
+		if p == "/api/unzip" {
+			handleUnzip(w, r)
+			return
+		}
+		if p == "/api/trash" || strings.HasPrefix(p, "/api/trash/") {
+			handleTrash(w, r)
+			return
+		}
+		if p == "/api/media/timeline" {
+			handleMediaTimeline(w, r)
+			return
+		}
+		if p == "/api/settings" {
+			handleStorageSettings(w, r)
+			return
+		}
+		if p == "/api/server-info" {
+			handleServerInfo(w, r)
+			return
+		}
+		if p != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		// Serve the dashboard from this build, independent of the working directory.
+		htmlContent := []byte(_webIndexHTML)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.WriteHeader(http.StatusOK)
+		w.Write(htmlContent)
+	}))
 }

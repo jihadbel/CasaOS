@@ -2,10 +2,12 @@ package v1
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"mime"
 	"net/http"
 	"net/url"
 	url2 "net/url"
@@ -18,6 +20,8 @@ import (
 	"time"
 
 	"github.com/IceWhaleTech/CasaOS-Common/utils/logger"
+	"github.com/IceWhaleTech/CasaOS/internal/safefs"
+	"github.com/IceWhaleTech/CasaOS/internal/textfile"
 	"github.com/IceWhaleTech/CasaOS/model"
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
@@ -32,8 +36,6 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-
-	"github.com/h2non/filetype"
 )
 
 type ListReq struct {
@@ -99,7 +101,10 @@ func GetFilerContent(ctx echo.Context) error {
 		})
 	}
 	// 文件读取任务是将文件内容读取到内存中。
-	info, err := ioutil.ReadFile(filePath)
+	info, err := readEditorFile(filePath)
+	if errors.Is(err, errEditorTooLarge) {
+		return ctx.JSON(http.StatusRequestEntityTooLarge, model.Result{Success: http.StatusRequestEntityTooLarge, Message: err.Error()})
+	}
 	if err != nil {
 		return ctx.JSON(common_err.SERVICE_ERROR, model.Result{
 			Success: common_err.FILE_READ_ERROR,
@@ -107,7 +112,10 @@ func GetFilerContent(ctx echo.Context) error {
 			Data:    err.Error(),
 		})
 	}
-	result := string(info)
+	result, _, err := textfile.Decode(info)
+	if err != nil {
+		return ctx.JSON(http.StatusUnsupportedMediaType, model.Result{Success: http.StatusUnsupportedMediaType, Message: err.Error()})
+	}
 
 	return ctx.JSON(common_err.SUCCESS, model.Result{
 		Success: common_err.SUCCESS,
@@ -155,6 +163,9 @@ func GetDownloadFile(ctx echo.Context) error {
 	}
 	list := strings.Split(files, ",")
 	for _, v := range list {
+		if file.InternalStoragePath(v) {
+			return echo.NewHTTPError(http.StatusBadRequest, "Internal storage cannot be downloaded")
+		}
 		if !file.Exists(v) {
 			return ctx.JSON(common_err.SERVICE_ERROR, model.Result{
 				Success: common_err.FILE_DOES_NOT_EXIST,
@@ -162,9 +173,9 @@ func GetDownloadFile(ctx echo.Context) error {
 			})
 		}
 	}
-	ctx.Request().Header.Add("Content-Type", "application/octet-stream")
-	ctx.Request().Header.Add("Content-Transfer-Encoding", "binary")
-	ctx.Request().Header.Add("Cache-Control", "no-cache")
+	ctx.Response().Header().Set("Content-Type", "application/octet-stream")
+	ctx.Response().Header().Set("Content-Transfer-Encoding", "binary")
+	ctx.Response().Header().Set("Cache-Control", "no-cache")
 	// handles only single files not folders and multiple files
 	if len(list) == 1 {
 
@@ -185,7 +196,7 @@ func GetDownloadFile(ctx echo.Context) error {
 			// 获取文件的名称
 			fileName := path.Base(filePath)
 			ctx.Response().Header().Add("Content-Disposition", "attachment; filename*=utf-8''"+url2.PathEscape(fileName))
-			ctx.File(filePath)
+			return ctx.File(filePath)
 		}
 	}
 
@@ -212,7 +223,7 @@ func GetDownloadFile(ctx echo.Context) error {
 
 	name := "_" + currentPath
 	name += extension
-	ctx.Request().Header.Add("Content-Disposition", "attachment; filename*=utf-8''"+url.PathEscape(name))
+	ctx.Response().Header().Set("Content-Disposition", "attachment; filename*=utf-8''"+url.PathEscape(name))
 	for _, fname := range list {
 		err = file.AddFile(ar, fname, commonDir)
 		if err != nil {
@@ -230,43 +241,44 @@ func GetDownloadSingleFile(ctx echo.Context) error {
 			Message: common_err.GetMsg(common_err.INVALID_PARAMS),
 		})
 	}
-	fileName := path.Base(filePath)
-	// c.Header("Content-Disposition", "inline")
-	ctx.Request().Header.Add("Content-Disposition", "attachment; filename*=utf-8''"+url2.PathEscape(fileName))
-
 	fi, err := os.Open(filePath)
 	if err != nil {
-		panic(err)
+		return echo.NewHTTPError(http.StatusNotFound, "File cannot be opened")
 	}
-
-	// We only have to pass the file header = first 261 bytes
-	buffer := make([]byte, 261)
-
-	_, _ = fi.Read(buffer)
-
-	kind, _ := filetype.Match(buffer)
-	if kind != filetype.Unknown {
-		ctx.Request().Header.Add("Content-Type", kind.MIME.Value)
+	defer fi.Close()
+	node, err := fi.Stat()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "File cannot be read")
 	}
-	node, err := os.Stat(filePath)
-	// Set the Last-Modified header to the timestamp
-	ctx.Request().Header.Add("Last-Modified", node.ModTime().UTC().Format(http.TimeFormat))
-
-	knownSize := node.Size() >= 0
-	if knownSize {
-		ctx.Request().Header.Add("Content-Length", strconv.FormatInt(node.Size(), 10))
+	if node.IsDir() {
+		return downloadDirectory(ctx, filePath)
+	}
+	if !node.Mode().IsRegular() {
+		return echo.NewHTTPError(http.StatusBadRequest, "Only regular files can be downloaded")
+	}
+	fileName := filepath.Base(filePath)
+	contentType := mime.TypeByExtension(strings.ToLower(filepath.Ext(fileName)))
+	disposition := "attachment"
+	baseType, _, _ := mime.ParseMediaType(contentType)
+	switch baseType {
+	case "image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp", "image/avif", "image/x-icon", "image/vnd.microsoft.icon", "application/pdf", "text/plain":
+		disposition = "inline"
+	default:
+		if strings.HasPrefix(baseType, "audio/") || strings.HasPrefix(baseType, "video/") {
+			disposition = "inline"
+		}
+	}
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	headers := ctx.Response().Header()
+	headers.Set("Content-Type", contentType)
+	headers.Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": fileName}))
+	headers.Set("X-Content-Type-Options", "nosniff")
+	if disposition == "attachment" {
+		headers.Set("Content-Security-Policy", "sandbox; default-src 'none'")
 	}
 	http.ServeContent(ctx.Response().Writer, ctx.Request(), fileName, node.ModTime(), fi)
-	defer fi.Close()
-	fileTmp, err := os.Open(filePath)
-	if err != nil {
-		return ctx.JSON(common_err.SERVICE_ERROR, model.Result{
-			Success: common_err.FILE_DOES_NOT_EXIST,
-			Message: common_err.GetMsg(common_err.FILE_DOES_NOT_EXIST),
-		})
-	}
-	defer fileTmp.Close()
-
 	return nil
 }
 
@@ -324,16 +336,11 @@ func DirPath(ctx echo.Context) error {
 	}
 	// Hide the files or folders in operation
 	fileQueue := make(map[string]string)
-	if len(service.OpStrArr) > 0 {
-		for _, v := range service.OpStrArr {
-			v, ok := service.FileQueue.Load(v)
-			if !ok {
-				continue
-			}
-			vt := v.(model.FileOperate)
+	{
+		for _, queued := range service.FileOperationsSnapshot() {
+			vt := queued.Operation
 			for _, i := range vt.Item {
-				lastPath := i.From[strings.LastIndex(i.From, "/")+1:]
-				fileQueue[vt.To+"/"+lastPath] = i.From
+				fileQueue[filepath.Join(vt.To, filepath.Base(i.From))] = i.From
 			}
 		}
 	}
@@ -415,7 +422,11 @@ func MkdirAll(ctx echo.Context) error {
 	// 	return ctx.JSON(http.StatusOK, model.Result{Success: common_err.INVALID_PARAMS, Message: common_err.GetMsg(common_err.INVALID_PARAMS)})
 	// 	return
 	// }
-	code, _ = service.MyService.System().MkdirAll(path)
+	var err error
+	code, err = service.MyService.System().MkdirAll(path)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, model.Result{Success: code, Message: err.Error()})
+	}
 	return ctx.JSON(common_err.SUCCESS, model.Result{Success: code, Message: common_err.GetMsg(code)})
 }
 
@@ -440,7 +451,11 @@ func PostCreateFile(ctx echo.Context) error {
 	// 	return ctx.JSON(http.StatusOK, model.Result{Success: common_err.INVALID_PARAMS, Message: common_err.GetMsg(common_err.INVALID_PARAMS)})
 	// 	return
 	// }
-	code, _ = service.MyService.System().CreateFile(path)
+	var err error
+	code, err = service.MyService.System().CreateFile(path)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, model.Result{Success: code, Message: err.Error()})
+	}
 	return ctx.JSON(common_err.SUCCESS, model.Result{Success: code, Message: common_err.GetMsg(code)})
 }
 
@@ -454,28 +469,45 @@ func PostCreateFile(ctx echo.Context) error {
 // @Success 200 {string} string "ok"
 // @Router /file/upload [get]
 func GetFileUpload(ctx echo.Context) error {
-	relative := ctx.QueryParam("relativePath")
 	fileName := ctx.QueryParam("filename")
-	chunkNumber := ctx.QueryParam("chunkNumber")
-	totalChunks, _ := strconv.Atoi(utils.DefaultQuery(ctx, "totalChunks", "0"))
-	path := ctx.QueryParam("path")
-	dirPath := ""
-	hash := file.GetHashByContent([]byte(fileName))
-	if file.Exists(path + "/" + relative) {
+	dir, err := uploadTargetDir(ctx.QueryParam("path"), fileName, ctx.QueryParam("relativePath"))
+	if err != nil {
+		return ctx.JSON(400, model.Result{Success: 400, Message: err.Error()})
+	}
+	number, numberErr := strconv.Atoi(ctx.QueryParam("chunkNumber"))
+	total, totalErr := strconv.Atoi(ctx.QueryParam("totalChunks"))
+	id := ctx.QueryParam("uploadId")
+	if id == "" {
+		id = ctx.QueryParam("identifier")
+	}
+	if numberErr != nil || totalErr != nil || total < 1 || total > 100000 || number < 1 || number > total {
+		return ctx.JSON(400, model.Result{Success: 400, Message: "Valid chunk metadata and uploadId are required"})
+	}
+	tempDir := ""
+	if total > 1 {
+		tempDir, err = uploadChunkDir(dir, fileName, id, total, number)
+		if err != nil {
+			return ctx.JSON(400, model.Result{Success: 400, Message: err.Error()})
+		}
+	}
+	if _, err := os.Lstat(filepath.Join(dir, fileName)); err == nil {
 		return ctx.JSON(http.StatusConflict, model.Result{Success: http.StatusConflict, Message: common_err.GetMsg(common_err.FILE_ALREADY_EXISTS)})
+	} else if !os.IsNotExist(err) {
+		return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
 	}
-	tempDir := filepath.Join(path, ".temp", hash+strconv.Itoa(totalChunks)) + "/"
-	if fileName != relative {
-		dirPath = strings.TrimSuffix(relative, fileName)
-		tempDir += dirPath
-		file.MkDir(path + "/" + dirPath)
+	if total == 1 {
+		return ctx.NoContent(http.StatusNoContent)
 	}
-	tempDir += chunkNumber
-	if !file.CheckNotExist(tempDir) {
+	part := filepath.Join(tempDir, strconv.Itoa(number))
+	if err := safefs.NoLinks(part); err != nil {
+		return ctx.JSON(400, model.Result{Success: 400, Message: err.Error()})
+	}
+	if info, err := os.Stat(part); err == nil && info.Mode().IsRegular() {
 		return ctx.JSON(200, model.Result{Success: 200, Message: common_err.GetMsg(common_err.FILE_ALREADY_EXISTS)})
+	} else if err != nil && !os.IsNotExist(err) {
+		return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
 	}
-
-	return ctx.JSON(204, model.Result{Success: 204, Message: common_err.GetMsg(common_err.SUCCESS)})
+	return ctx.NoContent(http.StatusNoContent)
 }
 
 // @Summary upload file
@@ -487,6 +519,8 @@ func GetFileUpload(ctx echo.Context) error {
 // @Param file formData file true "file"
 // @Success 200 {string} string "ok"
 // @Router /file/upload [post]
+var uploadChunksMutex sync.Mutex
+
 func PostFileUpload(ctx echo.Context) error {
 	f, fileHeader, err := ctx.Request().FormFile("file")
 	if err != nil || f == nil {
@@ -500,22 +534,9 @@ func PostFileUpload(ctx echo.Context) error {
 	if len(fileName) == 0 && fileHeader != nil {
 		fileName = fileHeader.Filename
 	}
-	if len(relative) == 0 {
-		relative = fileName
-	}
-
-	rawPath := ctx.FormValue("path")
-	if len(rawPath) == 0 || rawPath == "/" {
-		rawPath = `C:\CasaOS\DATA`
-	}
-	if strings.HasPrefix(rawPath, "/DATA") {
-		rawPath = filepath.Join(`C:\CasaOS`, rawPath)
-	}
-
-	targetDir := rawPath
-	if fileName != relative {
-		dirPath := strings.TrimSuffix(relative, fileName)
-		targetDir = filepath.Join(rawPath, dirPath)
+	targetDir, err := uploadTargetDir(ctx.FormValue("path"), fileName, relative)
+	if err != nil {
+		return ctx.JSON(400, model.Result{Success: common_err.INVALID_PARAMS, Message: err.Error()})
 	}
 
 	if err := os.MkdirAll(targetDir, os.ModePerm); err != nil {
@@ -524,49 +545,104 @@ func PostFileUpload(ctx echo.Context) error {
 	}
 
 	finalFilePath := filepath.Join(targetDir, fileName)
+	if _, err := os.Lstat(finalFilePath); err == nil {
+		return ctx.JSON(409, model.Result{Success: 409, Message: "A file with this name already exists"})
+	} else if !os.IsNotExist(err) {
+		return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
+	}
 
-	totalChunks, _ := strconv.Atoi(utils.DefaultPostForm(ctx, "totalChunks", "0"))
+	totalChunks, err := strconv.Atoi(utils.DefaultPostForm(ctx, "totalChunks", "0"))
+	if err != nil || totalChunks < 0 || totalChunks > 100000 {
+		return ctx.JSON(400, model.Result{Success: 400, Message: "Invalid totalChunks"})
+	}
 	chunkNumber := ctx.FormValue("chunkNumber")
 
 	if totalChunks > 1 {
-		hash := file.GetHashByContent([]byte(fileName))
-		tempDir := filepath.Join(targetDir, ".temp", hash+strconv.Itoa(totalChunks))
-		_ = os.MkdirAll(tempDir, os.ModePerm)
-
-		chunkFile := filepath.Join(tempDir, chunkNumber)
-		out, err := os.OpenFile(chunkFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
+		uploadChunksMutex.Lock()
+		defer uploadChunksMutex.Unlock()
+		number, err := strconv.Atoi(chunkNumber)
+		if err != nil || number < 1 || number > totalChunks || totalChunks > 100000 {
+			return ctx.JSON(400, model.Result{Success: 400, Message: "Invalid upload chunk"})
+		}
+		id := ctx.FormValue("uploadId")
+		if id == "" {
+			id = ctx.FormValue("identifier")
+		}
+		tempDir, err := uploadChunkDir(targetDir, fileName, id, totalChunks, number)
 		if err != nil {
-			logger.Error("error opening chunk file", zap.Error(err))
-			return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
+			return ctx.JSON(400, model.Result{Success: 400, Message: err.Error()})
 		}
-		if _, err := io.Copy(out, f); err != nil {
-			out.Close()
-			return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
+		if err := os.MkdirAll(tempDir, 0700); err != nil {
+			return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
 		}
-		out.Close()
+
+		if err := writeUploadChunk(tempDir, number, f); errors.Is(err, os.ErrExist) {
+			return ctx.JSON(409, model.Result{Success: 409, Message: err.Error()})
+		} else if err != nil {
+			return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
+		}
 
 		fileNum, err := ioutil.ReadDir(tempDir)
+		if err != nil {
+			return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
+		}
 		if err == nil && totalChunks == len(fileNum) {
-			if err := file.SpliceFiles(tempDir+"/", finalFilePath, totalChunks, 1); err != nil {
+			staged, err := os.CreateTemp(targetDir, ".casaos-upload-*")
+			if err != nil {
+				return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
+			}
+			defer os.Remove(staged.Name())
+			defer staged.Close()
+			for i := 1; i <= totalChunks; i++ {
+				part, err := os.Open(filepath.Join(tempDir, strconv.Itoa(i)))
+				if err != nil {
+					return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
+				}
+				_, copyErr := io.Copy(staged, part)
+				closeErr := part.Close()
+				if copyErr != nil {
+					return ctx.JSON(500, model.Result{Success: 500, Message: copyErr.Error()})
+				}
+				if closeErr != nil {
+					return ctx.JSON(500, model.Result{Success: 500, Message: closeErr.Error()})
+				}
+			}
+			if err := staged.Sync(); err != nil {
+				return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
+			}
+			if err := staged.Close(); err != nil {
+				return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
+			}
+			if err := safefs.NoReplace(staged.Name(), finalFilePath); err != nil {
 				logger.Error("error splicing chunks", zap.Error(err))
 				return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
 			}
-			go func() {
-				time.Sleep(5 * time.Second)
-				_ = os.RemoveAll(tempDir)
-			}()
+			// tempDir is an absolute, validated child of this upload's .temp folder.
+			if err := os.RemoveAll(tempDir); err != nil {
+				logger.Error("cleanup upload chunks", zap.Error(err))
+			}
 		}
 	} else {
-		out, err := os.OpenFile(finalFilePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
+		out, err := os.CreateTemp(targetDir, ".casaos-upload-*")
 		if err != nil {
 			logger.Error("error creating uploaded file", zap.String("path", finalFilePath), zap.Error(err))
 			return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
 		}
 		defer out.Close()
+		defer os.Remove(out.Name())
 
 		if _, err := io.Copy(out, f); err != nil {
 			logger.Error("error writing uploaded file", zap.String("path", finalFilePath), zap.Error(err))
 			return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
+		}
+		if err := out.Sync(); err != nil {
+			return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
+		}
+		if err := out.Close(); err != nil {
+			return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
+		}
+		if err := safefs.NoReplace(out.Name(), finalFilePath); err != nil {
+			return ctx.JSON(409, model.Result{Success: 409, Message: err.Error()})
 		}
 	}
 
@@ -640,21 +716,22 @@ func PostFileOctet(ctx echo.Context) error {
 // @Router /file/operate [post]
 func PostOperateFileOrDir(ctx echo.Context) error {
 	list := model.FileOperate{}
-	ctx.Bind(&list)
-
-	if len(list.Item) == 0 {
+	if err := ctx.Bind(&list); err != nil || len(list.Item) == 0 || (list.Type != "copy" && list.Type != "move") || list.To == "" {
 		return ctx.JSON(common_err.CLIENT_ERROR, model.Result{Success: common_err.INVALID_PARAMS, Message: common_err.GetMsg(common_err.INVALID_PARAMS)})
-	}
-	if list.To == list.Item[0].From[:strings.LastIndex(list.Item[0].From, "/")] {
-		return ctx.JSON(common_err.SERVICE_ERROR, model.Result{Success: common_err.SOURCE_DES_SAME, Message: common_err.GetMsg(common_err.SOURCE_DES_SAME)})
 	}
 
 	var total int64 = 0
 	for i := 0; i < len(list.Item); i++ {
-
-		size, err := file.GetFileOrDirSize(list.Item[i].From)
+		source, _, err := file.ValidateCopyTarget(list.Item[i].From, list.To)
 		if err != nil {
-			continue
+			return ctx.JSON(http.StatusBadRequest, model.Result{Success: common_err.INVALID_PARAMS, Message: err.Error()})
+		}
+		list.Item[i].From = source
+		list.Item[i].Finished = false
+		list.Item[i].ProcessedSize = 0
+		size, err := file.GetFileOrDirSize(source)
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, model.Result{Success: common_err.INVALID_PARAMS, Message: err.Error()})
 		}
 		list.Item[i].Size = size
 		total += size
@@ -668,17 +745,10 @@ func PostOperateFileOrDir(ctx echo.Context) error {
 
 	list.TotalSize = total
 	list.ProcessedSize = 0
+	list.Finished, list.Running, list.Error = false, false, ""
 
 	uid := uuid.NewString()
-	service.FileQueue.Store(uid, list)
-	service.OpStrArr = append(service.OpStrArr, uid)
-	if len(service.OpStrArr) == 1 {
-		go service.ExecOpFile()
-		go service.CheckFileStatus()
-
-		go service.MyService.Notify().SendFileOperateNotify(false)
-
-	}
+	service.QueueFileOperation(uid, list)
 
 	return ctx.JSON(common_err.SUCCESS, model.Result{Success: common_err.SUCCESS, Message: common_err.GetMsg(common_err.SUCCESS)})
 }
@@ -727,8 +797,22 @@ func DeleteFile(ctx echo.Context) error {
 // @Success 200 {string} string "ok"
 // @Router /file/update [put]
 func PutFileContent(ctx echo.Context) error {
+	if ctx.Request().ContentLength > maxEditorRequestBytes {
+		return ctx.JSON(http.StatusRequestEntityTooLarge, model.Result{Success: http.StatusRequestEntityTooLarge, Message: "Editor request is too large"})
+	}
+	ctx.Request().Body = http.MaxBytesReader(ctx.Response(), ctx.Request().Body, maxEditorRequestBytes)
 	fi := model.FileUpdate{}
-	ctx.Bind(&fi)
+	bindErr := ctx.Bind(&fi)
+	var tooLarge *http.MaxBytesError
+	if errors.As(bindErr, &tooLarge) {
+		return ctx.JSON(http.StatusRequestEntityTooLarge, model.Result{Success: http.StatusRequestEntityTooLarge, Message: "Editor request is too large"})
+	}
+	if bindErr != nil || fi.FilePath == "" {
+		return ctx.JSON(400, model.Result{Success: 400, Message: "Invalid file content request"})
+	}
+	if len(fi.FileContent) > 2*maxEditorFileBytes {
+		return ctx.JSON(http.StatusRequestEntityTooLarge, model.Result{Success: http.StatusRequestEntityTooLarge, Message: errEditorTooLarge.Error()})
+	}
 
 	// path := ctx.FormValue("path")
 	// content := ctx.FormValue("content")
@@ -744,8 +828,31 @@ func PutFileContent(ctx echo.Context) error {
 	if err != nil {
 		return ctx.JSON(common_err.SERVICE_ERROR, model.Result{Success: common_err.FILE_DELETE_ERROR, Message: common_err.GetMsg(common_err.FILE_DELETE_ERROR), Data: err})
 	}
-	os.OpenFile(fi.FilePath, os.O_CREATE, fm)
-	err = file.WriteToFullPath([]byte(fi.FileContent), fi.FilePath, fm)
+	if !f.Mode().IsRegular() {
+		return ctx.JSON(400, model.Result{Success: 400, Message: "Only regular files can be edited"})
+	}
+	if err := safefs.NoLinks(fi.FilePath); err != nil {
+		return ctx.JSON(400, model.Result{Success: 400, Message: err.Error()})
+	}
+	original, err := readEditorFile(fi.FilePath)
+	if errors.Is(err, errEditorTooLarge) {
+		return ctx.JSON(http.StatusRequestEntityTooLarge, model.Result{Success: http.StatusRequestEntityTooLarge, Message: err.Error()})
+	}
+	if err != nil {
+		return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
+	}
+	_, format, err := textfile.Decode(original)
+	if err != nil {
+		return ctx.JSON(415, model.Result{Success: 415, Message: err.Error()})
+	}
+	encoded, err := format.Encode(fi.FileContent)
+	if err != nil {
+		return ctx.JSON(400, model.Result{Success: 400, Message: err.Error()})
+	}
+	if len(encoded) > maxEditorFileBytes {
+		return ctx.JSON(http.StatusRequestEntityTooLarge, model.Result{Success: http.StatusRequestEntityTooLarge, Message: errEditorTooLarge.Error()})
+	}
+	err = safefs.WriteAtomic(fi.FilePath, encoded, fm.Perm())
 	if err != nil {
 		return ctx.JSON(common_err.SERVICE_ERROR, model.Result{Success: common_err.SERVICE_ERROR, Message: common_err.GetMsg(common_err.SERVICE_ERROR), Data: err.Error()})
 	}
@@ -762,50 +869,27 @@ func PutFileContent(ctx echo.Context) error {
 // @Success 200 {string} string "ok"
 // @Router /file/image [get]
 func GetFileImage(ctx echo.Context) error {
-	t := ctx.QueryParam("type")
-	path := ctx.QueryParam("path")
-	if !file.Exists(path) {
-		return ctx.JSON(common_err.SERVICE_ERROR, model.Result{Success: common_err.FILE_ALREADY_EXISTS, Message: common_err.GetMsg(common_err.FILE_ALREADY_EXISTS)})
-	}
-	if t == "thumbnail" {
-		f, err := file.GetImage(path, 100, 0)
+	if ctx.QueryParam("type") == "thumbnail" {
+		data, err := file.GetImage(ctx.QueryParam("path"), 100, 0)
 		if err != nil {
 			return ctx.JSON(common_err.SERVICE_ERROR, model.Result{Success: common_err.SERVICE_ERROR, Message: common_err.GetMsg(common_err.SERVICE_ERROR), Data: err.Error()})
 		}
-		ctx.Response().Writer.Write(f)
+		contentType := http.DetectContentType(data)
+		if !strings.HasPrefix(contentType, "image/") || contentType == "image/svg+xml" {
+			return echo.NewHTTPError(http.StatusUnsupportedMediaType, "Invalid image thumbnail")
+		}
+		ctx.Response().Header().Set("X-Content-Type-Options", "nosniff")
+		return ctx.Blob(http.StatusOK, contentType, data)
 	}
-	f, err := os.Open(path)
-	if err != nil {
-		return ctx.JSON(common_err.SERVICE_ERROR, model.Result{Success: common_err.SERVICE_ERROR, Message: common_err.GetMsg(common_err.SERVICE_ERROR), Data: err.Error()})
-	}
-	defer f.Close()
-	data, err := ioutil.ReadAll(f)
-	if err != nil {
-		return ctx.JSON(common_err.SERVICE_ERROR, model.Result{Success: common_err.SERVICE_ERROR, Message: common_err.GetMsg(common_err.SERVICE_ERROR), Data: err.Error()})
-	}
-	ctx.Response().Writer.Write(data)
-	return nil
+	return GetDownloadSingleFile(ctx)
 }
 
 func DeleteOperateFileOrDir(ctx echo.Context) error {
 	id := ctx.Param("id")
-	if id == "0" {
-		service.FileQueue = sync.Map{}
-		service.OpStrArr = []string{}
-	} else {
-
-		service.FileQueue.Delete(id)
-		tempList := []string{}
-		for _, v := range service.OpStrArr {
-			if v != id {
-				tempList = append(tempList, v)
-			}
-		}
-		service.OpStrArr = tempList
-
+	service.CancelFileOperation(id)
+	if service.MyService != nil {
+		go service.MyService.Notify().SendFileOperateNotify(true)
 	}
-
-	go service.MyService.Notify().SendFileOperateNotify(true)
 	return ctx.JSON(common_err.SUCCESS, model.Result{Success: common_err.SUCCESS, Message: common_err.GetMsg(common_err.SUCCESS)})
 }
 

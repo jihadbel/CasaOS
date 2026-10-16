@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/IceWhaleTech/CasaOS/codegen"
+	"github.com/IceWhaleTech/CasaOS/pkg/config"
 	"github.com/IceWhaleTech/CasaOS/pkg/utils/file"
 	"github.com/IceWhaleTech/CasaOS/service"
 	"github.com/labstack/echo/v4"
@@ -50,7 +51,7 @@ func (c *CasaOS) GetHealthlogs(ctx echo.Context) error {
 	var name, currentPath, commonDir, extension string
 	var err error
 	var ar archiver.Writer
-	fileList, err := os.ReadDir("/var/log/casaos")
+	fileList, err := os.ReadDir(config.AppInfo.LogPath)
 	if err != nil {
 		message := err.Error()
 		return ctx.JSON(http.StatusInternalServerError, codegen.ResponseInternalServerError{
@@ -75,7 +76,7 @@ func (c *CasaOS) GetHealthlogs(ctx echo.Context) error {
 	}
 	defer ar.Close()
 
-	commonDir = "/var/log/casaos"
+	commonDir = config.AppInfo.LogPath
 
 	currentPath = filepath.Base(commonDir)
 
@@ -87,7 +88,7 @@ func (c *CasaOS) GetHealthlogs(ctx echo.Context) error {
 	ctx.Response().Header().Add("Content-Disposition", "attachment; filename*=utf-8''"+url.PathEscape(name))
 
 	for _, fname := range fileList {
-		err := file.AddFile(ar, filepath.Join("/var/log/casaos", fname.Name()), commonDir)
+		err := file.AddFile(ar, filepath.Join(commonDir, fname.Name()), commonDir)
 		if err != nil {
 			message := err.Error()
 			return ctx.JSON(http.StatusInternalServerError, codegen.ResponseInternalServerError{

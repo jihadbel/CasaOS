@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -74,6 +75,20 @@ func InitNetworkMount() {
 	connections := service.MyService.Connections().GetConnectionsList()
 	for _, v := range connections {
 		connection := service.MyService.Connections().GetConnectionByID(fmt.Sprint(v.ID))
+		if runtime.GOOS == "windows" {
+			// Reconnect known UNC shares without creating or deleting remote directories.
+			for _, share := range strings.Split(connection.Directories, ",") {
+				if share == "" {
+					continue
+				}
+				if err := service.MyService.Connections().MountSmaba(connection.Username, connection.Host, share, connection.Port, service.SMBSharePath(connection.Host, share), connection.Password); err != nil {
+					logger.Error("reconnect Windows SMB share", zap.Error(err))
+				}
+			}
+			connection.MountPoint = service.SMBHostPath(connection.Host)
+			service.MyService.Connections().UpdateConnection(&connection)
+			continue
+		}
 		directories, err := samba.GetSambaSharesList(connection.Host, connection.Port, connection.Username, connection.Password)
 		if err != nil {
 			service.MyService.Connections().DeleteConnection(fmt.Sprint(connection.ID))

@@ -16,10 +16,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/IceWhaleTech/CasaOS-Common/utils/logger"
-	"github.com/IceWhaleTech/CasaOS-Common/utils/systemctl"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 
@@ -34,20 +34,14 @@ import (
 // service
 
 func GetSambaStatus(ctx echo.Context) error {
-	if status, err := systemctl.IsServiceRunning("smbd"); err != nil || !status {
+	status, needInit, err := service.GetSambaStatus()
+	if err != nil || !status {
 		return ctx.JSON(http.StatusInternalServerError, model.Result{
 			Success: common_err.SERVICE_NOT_RUNNING,
 			Message: common_err.GetMsg(common_err.SERVICE_NOT_RUNNING),
 		})
 	}
 
-	needInit := true
-	if file.Exists("/etc/samba/smb.conf") {
-		str := file.ReadLine(1, "/etc/samba/smb.conf")
-		if strings.Contains(str, "# Copyright (c) 2021-2022 CasaOS Inc. All rights reserved.") {
-			needInit = false
-		}
-	}
 	data := make(map[string]string, 1)
 	data["need_init"] = fmt.Sprintf("%v", needInit)
 	return ctx.JSON(common_err.SUCCESS, model.Result{Success: common_err.SUCCESS, Message: common_err.GetMsg(common_err.SUCCESS), Data: data})
@@ -89,7 +83,9 @@ func PostSambaSharesCreate(ctx echo.Context) error {
 		shareDBModel.Path = v.Path
 		shareDBModel.Name = filepath.Base(v.Path)
 		os.Chmod(v.Path, 0o777)
-		service.MyService.Shares().CreateShare(shareDBModel)
+		if err := service.MyService.Shares().CreateShare(shareDBModel); err != nil {
+			return ctx.JSON(500, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
+		}
 	}
 
 	return ctx.JSON(common_err.SUCCESS, model.Result{Success: common_err.SUCCESS, Message: common_err.GetMsg(common_err.SUCCESS), Data: shares})
@@ -100,7 +96,9 @@ func DeleteSambaShares(ctx echo.Context) error {
 	if id == "" {
 		return ctx.JSON(common_err.CLIENT_ERROR, model.Result{Success: common_err.INSUFFICIENT_PERMISSIONS, Message: common_err.GetMsg(common_err.INSUFFICIENT_PERMISSIONS)})
 	}
-	service.MyService.Shares().DeleteShare(id)
+	if err := service.MyService.Shares().DeleteShare(id); err != nil {
+		return ctx.JSON(500, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
+	}
 	return ctx.JSON(common_err.SUCCESS, model.Result{Success: common_err.SUCCESS, Message: common_err.GetMsg(common_err.SUCCESS), Data: id})
 }
 
@@ -165,14 +163,25 @@ func PostSambaConnectionsCreate(ctx echo.Context) error {
 	connectionDBModel.Host = connection.Host
 	connectionDBModel.Port = connection.Port
 	connectionDBModel.Directories = strings.Join(directories, ",")
-	baseHostPath := "/mnt/" + connection.Host
+	baseHostPath := service.SMBHostPath(connection.Host)
 	connectionDBModel.MountPoint = baseHostPath
 	connection.MountPoint = baseHostPath
-	file.IsNotExistMkDir(baseHostPath)
+	if runtime.GOOS != "windows" {
+		file.IsNotExistMkDir(baseHostPath)
+	}
+	mountedPaths := []string{}
 	for _, v := range directories {
-		mountPoint := baseHostPath + "/" + v
-		file.IsNotExistMkDir(mountPoint)
-		service.MyService.Connections().MountSmaba(connectionDBModel.Username, connectionDBModel.Host, v, connectionDBModel.Port, mountPoint, connectionDBModel.Password)
+		mountPoint := service.SMBSharePath(connection.Host, v)
+		if runtime.GOOS != "windows" {
+			file.IsNotExistMkDir(mountPoint)
+		}
+		if err := service.MyService.Connections().MountSmaba(connectionDBModel.Username, connectionDBModel.Host, v, connectionDBModel.Port, mountPoint, connectionDBModel.Password); err != nil {
+			for _, p := range mountedPaths {
+				_ = service.MyService.Connections().UnmountSmaba(p)
+			}
+			return ctx.JSON(500, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
+		}
+		mountedPaths = append(mountedPaths, mountPoint)
 	}
 
 	service.MyService.Connections().CreateConnection(&connectionDBModel)
@@ -186,6 +195,18 @@ func DeleteSambaConnections(ctx echo.Context) error {
 	connection := service.MyService.Connections().GetConnectionByID(id)
 	if connection.Username == "" {
 		return ctx.JSON(common_err.CLIENT_ERROR, model.Result{Success: common_err.Record_NOT_EXIST, Message: common_err.GetMsg(common_err.Record_NOT_EXIST)})
+	}
+	if runtime.GOOS == "windows" {
+		for _, share := range strings.Split(connection.Directories, ",") {
+			if share == "" {
+				continue
+			}
+			if err := service.MyService.Connections().UnmountSmaba(service.SMBSharePath(connection.Host, share)); err != nil {
+				return ctx.JSON(500, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
+			}
+		}
+		service.MyService.Connections().DeleteConnection(id)
+		return ctx.JSON(200, model.Result{Success: common_err.SUCCESS, Data: id})
 	}
 	mountPointList, err := samba.GetSambaSharesList(connection.Host, connection.Port, connection.Username, connection.Password)
 	// mountPointList, err := service.MyService.System().GetDirPath(connection.MountPoint)

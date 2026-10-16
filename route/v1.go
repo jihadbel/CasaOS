@@ -9,6 +9,7 @@ import (
 	"github.com/IceWhaleTech/CasaOS-Common/utils/jwt"
 	"github.com/IceWhaleTech/CasaOS/common"
 	"github.com/IceWhaleTech/CasaOS/pkg/config"
+	"github.com/IceWhaleTech/CasaOS/pkg/localauth"
 	v1 "github.com/IceWhaleTech/CasaOS/route/v1"
 	"github.com/labstack/echo/v4"
 	echo_middleware "github.com/labstack/echo/v4/middleware"
@@ -43,14 +44,7 @@ func InitV1Router() http.Handler {
 	//	e.Any("/v1/test", v1.CheckNetwork)
 	v1Group.Use(echo_middleware.JWTWithConfig(echo_middleware.JWTConfig{
 		Skipper: func(c echo.Context) bool {
-			if c.RealIP() == "::1" || c.RealIP() == "127.0.0.1" {
-				return true
-			}
-			// In standalone Windows File Server mode, allow access if external user service is not active
-			if _, err := external.GetPublicKey(config.CommonInfo.RuntimePath); err != nil {
-				return true
-			}
-			return false
+			return localauth.Authenticated(c.Request())
 		},
 		ParseTokenFunc: func(token string, c echo.Context) (interface{}, error) {
 			valid, claims, err := jwt.Validate(token, func() (*ecdsa.PublicKey, error) { return external.GetPublicKey(config.CommonInfo.RuntimePath) })

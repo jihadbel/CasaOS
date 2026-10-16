@@ -18,6 +18,8 @@ type FileOperate struct {
 	To            string     `json:"to" binding:"required"`
 	Style         string     `json:"style"`
 	Finished      bool       `json:"finished"`
+	Running       bool       `json:"-"`
+	Error         string     `json:"error,omitempty"`
 }
 
 type FileItem struct {

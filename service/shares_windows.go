@@ -1,14 +1,7 @@
-//go:build windows
-
-/*
- * @Description: Windows-native SMB file sharing management
- * @Website: https://www.casaos.io
- */
 package service
 
 import (
-	"fmt"
-	"os/exec"
+	"encoding/json"
 	"path/filepath"
 
 	"github.com/IceWhaleTech/CasaOS-Common/utils/logger"
@@ -16,36 +9,53 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *sharesStruct) UpdateConfigFile() {
+func (s *sharesStruct) UpdateConfigFile() error {
 	shares := []model2.SharesDBModel{}
-	s.db.Select("anonymous,path").Find(&shares)
-
-	for _, share := range shares {
-		dirName := filepath.Base(share.Path)
-		// On Windows, ensure the native SMB share exists
-		psScript := fmt.Sprintf(`
-			if (-not (Get-SmbShare -Name '%s' -ErrorAction SilentlyContinue)) {
-				New-SmbShare -Name '%s' -Path '%s' -FullAccess 'Everyone' -Description 'CasaOS share %s'
-			}
-		`, dirName, dirName, share.Path, dirName)
-
-		cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psScript)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			logger.Error("Failed to configure Windows SMB share",
-				zap.String("name", dirName),
-				zap.String("path", share.Path),
-				zap.Error(err),
-				zap.String("output", string(output)),
-			)
-		}
+	if err := s.db.Select("name,path").Find(&shares).Error; err != nil {
+		return err
 	}
+	type entry struct {
+		Name string
+		Path string
+	}
+	desired := []entry{}
+	for _, share := range shares {
+		desired = append(desired, entry{filepath.Base(share.Path), share.Path})
+	}
+	data, err := json.Marshal(desired)
+	if err != nil {
+		return err
+	}
+	return runSMBScript(`
+		$marker = 'CasaOS managed share'
+		$desired = ConvertFrom-Json -InputObject $env:CASAOS_SMB_SHARES
+		$existing = @(Get-SmbShare)
+		$names = @{}
+		foreach ($share in $desired) {
+			if ($names.ContainsKey($share.Name)) { throw 'Duplicate CasaOS share name' }
+			$names[$share.Name] = $share.Path
+			$current = $existing | Where-Object Name -eq $share.Name
+			if ($current -and ($current.Path -ne $share.Path -or ($current.Description -ne $marker -and $current.Description -ne ('CasaOS share ' + $share.Name)))) {
+				throw ('Share name is owned by another application: ' + $share.Name)
+			}
+		}
+		foreach ($share in $existing) {
+			$owned = $share.Description -eq $marker -or $share.Description -eq ('CasaOS share ' + $share.Name)
+			if ($owned -and -not $names.ContainsKey($share.Name)) {
+				Remove-SmbShare -Name $share.Name -Force -Confirm:$false
+			}
+		}
+		$everyone = ([System.Security.Principal.SecurityIdentifier]'S-1-1-0').Translate([System.Security.Principal.NTAccount]).Value
+		foreach ($share in $desired) {
+			if (-not ($existing | Where-Object Name -eq $share.Name)) {
+				New-SmbShare -Name $share.Name -Path $share.Path -FullAccess $everyone -Description $marker | Out-Null
+			}
+		}
+	`, map[string]string{"SHARES": string(data)})
 }
 
 func (s *sharesStruct) InitSambaConfig() {
-	// On Windows, check that the Server service (LanmanServer) is running
-	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command",
-		`if ((Get-Service -Name LanmanServer).Status -ne 'Running') { Start-Service -Name LanmanServer }`)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		logger.Info("Windows LanmanServer service check returned notice", zap.Error(err), zap.String("output", string(output)))
+	if err := runSMBScript(`if ((Get-Service -Name LanmanServer).Status -ne 'Running') { Start-Service -Name LanmanServer }`, nil); err != nil {
+		logger.Error("Windows SMB service failed", zap.Error(err))
 	}
 }

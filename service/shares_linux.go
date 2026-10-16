@@ -22,7 +22,7 @@ import (
 	model2 "github.com/IceWhaleTech/CasaOS/service/model"
 )
 
-func (s *sharesStruct) UpdateConfigFile() {
+func (s *sharesStruct) UpdateConfigFile() error {
 	shares := []model2.SharesDBModel{}
 	s.db.Select("anonymous,path").Find(&shares)
 	// generated config file
@@ -44,9 +44,12 @@ force user = root
 `
 	}
 	// write config file
-	file.WriteToPath([]byte(configStr), "/etc/samba", "smb.casa.conf")
+	if err := file.WriteToPath([]byte(configStr), "/etc/samba", "smb.casa.conf"); err != nil {
+		return err
+	}
 	// restart samba
-	command.OnlyExec("source " + config.AppInfo.ShellPath + "/helper.sh ;RestartSMBD")
+	_, err := command.OnlyExec("source " + config.AppInfo.ShellPath + "/helper.sh ;RestartSMBD")
+	return err
 }
 
 func (s *sharesStruct) InitSambaConfig() {

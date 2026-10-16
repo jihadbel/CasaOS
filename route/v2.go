@@ -12,6 +12,7 @@ import (
 
 	"github.com/IceWhaleTech/CasaOS/codegen"
 	"github.com/IceWhaleTech/CasaOS/pkg/config"
+	"github.com/IceWhaleTech/CasaOS/pkg/localauth"
 	"github.com/IceWhaleTech/CasaOS/pkg/utils/file"
 
 	"github.com/IceWhaleTech/CasaOS-Common/external"
@@ -70,8 +71,7 @@ func InitV2Router() http.Handler {
 
 	e.Use(echo_middleware.JWTWithConfig(echo_middleware.JWTConfig{
 		Skipper: func(c echo.Context) bool {
-			return c.RealIP() == "::1" || c.RealIP() == "127.0.0.1"
-			// return true
+			return localauth.Authenticated(c.Request())
 		},
 		ParseTokenFunc: func(token string, c echo.Context) (interface{}, error) {
 			valid, claims, err := jwt.Validate(token, func() (*ecdsa.PublicKey, error) { return external.GetPublicKey(config.CommonInfo.RuntimePath) })
@@ -119,7 +119,7 @@ func InitV2Router() http.Handler {
 			// jump validate when upload file
 			// because file upload can't pass validate
 			// issue: https://github.com/deepmap/oapi-codegen/issues/514
-			return strings.Contains(c.Request().Header[echo.HeaderContentType][0], "multipart/form-data")
+			return strings.Contains(c.Request().Header.Get(echo.HeaderContentType), "multipart/form-data")
 		},
 		Options: openapi3filter.Options{AuthenticationFunc: openapi3filter.NoopAuthenticationFunc},
 	}))
@@ -148,8 +148,7 @@ func InitV2DocRouter(docHTML string, docYAML string) http.Handler {
 
 func InitFile() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// In standalone mode, if external user service is not running, skip JWT check
-		if _, err := external.GetPublicKey(config.CommonInfo.RuntimePath); err == nil {
+		if !localauth.Authenticated(r) {
 			token := r.URL.Query().Get("token")
 			if len(token) == 0 {
 				w.Header().Set("Content-Type", "application/json")

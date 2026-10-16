@@ -11,6 +11,8 @@
 package service
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -41,11 +43,15 @@ func (s *standaloneGatewayService) CreateRoute(route *commonModel.Route) error {
 }
 
 func (s *standaloneGatewayService) ChangePort(request *commonModel.ChangePortRequest) error {
-	return nil
+	return errors.New("restart the standalone server with the configured HTTP port")
 }
 
 func (s *standaloneGatewayService) GetPort() (error, string) {
-	return nil, "8080"
+	port := config.ServerInfo.HttpPort
+	if port == "" {
+		port = "8080"
+	}
+	return nil, fmt.Sprintf(`{"data":%s}`, port)
 }
 
 type Repository interface {

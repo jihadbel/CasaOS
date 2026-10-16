@@ -3,12 +3,12 @@ package file
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"io/ioutil"
-	"log"
 	"mime/multipart"
 	"os"
 	"path"
@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/IceWhaleTech/CasaOS/internal/safefs"
 	"github.com/mholt/archiver/v3"
 )
 
@@ -205,42 +206,7 @@ func ReadFullFile(path string) []byte {
 
 // File copies a single file from src to dst
 func CopyFile(src, dst, style string) error {
-	var err error
-	var srcfd *os.File
-	var dstfd *os.File
-	var srcinfo os.FileInfo
-
-	lastPath := src[strings.LastIndex(src, "/")+1:]
-
-	if !strings.HasSuffix(dst, "/") {
-		dst += "/"
-	}
-	dst += lastPath
-	if Exists(dst) {
-		if style == "skip" {
-			return nil
-		} else {
-			os.Remove(dst)
-		}
-	}
-
-	if srcfd, err = os.Open(src); err != nil {
-		return err
-	}
-	defer srcfd.Close()
-
-	if dstfd, err = os.Create(dst); err != nil {
-		return err
-	}
-	defer dstfd.Close()
-
-	if _, err = io.Copy(dstfd, srcfd); err != nil {
-		return err
-	}
-	if srcinfo, err = os.Stat(src); err != nil {
-		return err
-	}
-	return os.Chmod(dst, srcinfo.Mode())
+	return CopyDirContext(context.Background(), src, dst, style)
 }
 
 /**
@@ -253,36 +219,7 @@ func CopyFile(src, dst, style string) error {
  * @router:
  */
 func CopySingleFile(src, dst, style string) error {
-	var err error
-	var srcfd *os.File
-	var dstfd *os.File
-	var srcinfo os.FileInfo
-
-	if Exists(dst) {
-		if style == "skip" {
-			return nil
-		} else {
-			os.Remove(dst)
-		}
-	}
-
-	if srcfd, err = os.Open(src); err != nil {
-		return err
-	}
-	defer srcfd.Close()
-
-	if dstfd, err = os.Create(dst); err != nil {
-		return err
-	}
-	defer dstfd.Close()
-
-	if _, err = io.Copy(dstfd, srcfd); err != nil {
-		return err
-	}
-	if srcinfo, err = os.Stat(src); err != nil {
-		return err
-	}
-	return os.Chmod(dst, srcinfo.Mode())
+	return copySingle(context.Background(), src, dst, style)
 }
 
 // Check for duplicate file names
@@ -298,53 +235,7 @@ func GetNoDuplicateFileName(fullPath string) string {
 
 // Dir copies a whole directory recursively
 func CopyDir(src string, dst string, style string) error {
-	var err error
-	var fds []os.FileInfo
-	var srcinfo os.FileInfo
-
-	if srcinfo, err = os.Stat(src); err != nil {
-		return err
-	}
-	if !srcinfo.IsDir() {
-		if err = CopyFile(src, dst, style); err != nil {
-			fmt.Println(err)
-		}
-		return nil
-	}
-	// dstPath := dst
-	lastPath := src[strings.LastIndex(src, "/")+1:]
-	dst += "/" + lastPath
-	// for i := 0; Exists(dst); i++ {
-	// 	dst = dstPath + "/" + lastPath + strconv.Itoa(i+1)
-	// }
-	if Exists(dst) {
-		if style == "skip" {
-			return nil
-		} else {
-			os.Remove(dst)
-		}
-	}
-	if err = os.MkdirAll(dst, srcinfo.Mode()); err != nil {
-		return err
-	}
-	if fds, err = ioutil.ReadDir(src); err != nil {
-		return err
-	}
-	for _, fd := range fds {
-		srcfp := path.Join(src, fd.Name())
-		dstfp := dst // path.Join(dst, fd.Name())
-
-		if fd.IsDir() {
-			if err = CopyDir(srcfp, dstfp, style); err != nil {
-				fmt.Println(err)
-			}
-		} else {
-			if err = CopyFile(srcfp, dstfp, style); err != nil {
-				fmt.Println(err)
-			}
-		}
-	}
-	return nil
+	return CopyDirContext(context.Background(), src, dst, style)
 }
 
 func WriteToPath(data []byte, path, name string) error {
@@ -431,6 +322,12 @@ func GetCompressionAlgorithm(t string) (string, archiver.Writer, error) {
 }
 
 func AddFile(ar archiver.Writer, path, commonPath string) error {
+	if InternalStoragePath(path) {
+		return nil
+	}
+	if err := safefs.NoLinks(path); err != nil {
+		return err
+	}
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
@@ -471,7 +368,7 @@ func AddFile(ar archiver.Writer, path, commonPath string) error {
 		for _, name := range names {
 			err = AddFile(ar, filepath.Join(path, name), commonPath)
 			if err != nil {
-				log.Printf("Failed to archive %v", err)
+				return err
 			}
 		}
 	}

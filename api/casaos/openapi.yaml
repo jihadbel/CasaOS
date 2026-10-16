@@ -132,7 +132,19 @@ paths:
           required: true
           schema:
             type: integer
-      description: Check if the file block has been uploaded (needs to be modified later)
+        - name: uploadId
+          in: query
+          description: Unique transfer ID, matching the multipart uploadId. Required unless identifier is supplied.
+          schema:
+            type: string
+            maxLength: 256
+        - name: identifier
+          in: query
+          description: Alias for uploadId.
+          schema:
+            type: string
+            maxLength: 256
+      description: Check a completed chunk of a transfer. A unique uploadId (or identifier) must be reused for every chunk and probe of that transfer.
       operationId: checkUploadChunk
       responses:
         "200":
@@ -145,7 +157,7 @@ paths:
       tags:
         - File
       summary: Upload file
-      description: Upload file
+      description: Upload file. For totalChunks greater than one, supply a unique uploadId (or identifier) for each transfer and reuse it for all its chunks. Missing transfer identity is rejected with HTTP 400. A different transfer cannot overwrite an existing destination.
       operationId: postUploadFile
       requestBody:
         content:
@@ -182,7 +194,13 @@ paths:
                   example: "1024"
                 identifier:
                   type: string
-                  example: "test.log"
+                  description: Unique transfer ID; accepted as an alias for uploadId.
+                  example: "9bc7894e-430e-4ccd-b8a8-fbddedff5982"
+                uploadId:
+                  type: string
+                  maxLength: 256
+                  description: Required for chunked uploads unless identifier is supplied; generate a new ID for each transfer, even for the same filename.
+                  example: "9bc7894e-430e-4ccd-b8a8-fbddedff5982"
       responses:
         "200":
           $ref: "#/components/responses/ResponseStringOK"
