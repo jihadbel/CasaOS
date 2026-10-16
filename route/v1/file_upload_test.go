@@ -162,3 +162,44 @@ func TestUploadSingleChunkProbeDoesNotRequireTransferID(t *testing.T) {
 	}
 	probe(409)
 }
+
+func TestChunkUploadIgnoresAbandonedTemporaryFiles(t *testing.T) {
+	root := t.TempDir()
+	dir, err := uploadChunkDir(root, "file.txt", "interrupted", 2, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".chunk-abandoned"), []byte("partial"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, part := range []struct{ number, content string }{{"1", "first"}, {"1", "first"}, {"2", "second"}} {
+		w := testUpload(t, root, "file.txt", "file.txt", part.content, map[string]string{"totalChunks": "2", "chunkNumber": part.number, "uploadId": "interrupted"})
+		if w.Code != 200 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		if part.number == "1" {
+			if _, err := os.Stat(filepath.Join(root, "file.txt")); !os.IsNotExist(err) {
+				t.Fatal("incomplete upload published", err)
+			}
+		}
+	}
+	if data, err := os.ReadFile(filepath.Join(root, "file.txt")); err != nil || string(data) != "firstsecond" {
+		t.Fatal(string(data), err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatal("completed upload chunks were not cleaned up", err)
+	}
+}
+
+func TestChunkReadinessRejectsNonRegularNumberedEntries(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "1"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if ready, err := uploadChunksReady(root, 2); ready || err == nil {
+		t.Fatal("directory counted as a completed part", ready, err)
+	}
+}

@@ -138,3 +138,52 @@ func TestDownloadThumbnailContainsOnlyEncodedImage(t *testing.T) {
 		t.Fatal("thumbnail includes trailing original file data", img.Bounds(), reader.Len())
 	}
 }
+
+func TestBulkSingleDownloadUsesSafeBasenameAndHeaders(t *testing.T) {
+	name := "صورة العائلة.html"
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, []byte("<script>unsafe()</script>"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	e := echo.New()
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/v1/file/download?files="+url.QueryEscape(path), nil)
+	if err := GetDownloadFile(e.NewContext(req, w)); err != nil {
+		t.Fatal(err)
+	}
+	disposition, params, err := mime.ParseMediaType(w.Header().Get("Content-Disposition"))
+	if err != nil || disposition != "attachment" || params["filename"] != name {
+		t.Fatal(w.Header(), err)
+	}
+	if w.Header().Get("X-Content-Type-Options") != "nosniff" || !strings.Contains(w.Header().Get("Content-Security-Policy"), "sandbox") {
+		t.Fatal("bulk download bypassed safe headers", w.Header())
+	}
+}
+
+func TestSingleDownloadRejectsInternalStorage(t *testing.T) {
+	root := t.TempDir()
+	for _, dir := range []string{".temp", ".TEMP", ".CasaOS-RecycleBin", ".casaos-upload-test"} {
+		path := filepath.Join(root, dir, "secret.txt")
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("private"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		for _, thumbnail := range []bool{false, true} {
+			e := echo.New()
+			w := httptest.NewRecorder()
+			ctx := e.NewContext(httptest.NewRequest("GET", "/v1/file?type=thumbnail&path="+url.QueryEscape(path), nil), w)
+			handler := GetDownloadSingleFile
+			if thumbnail {
+				handler = GetFileImage
+			}
+			if err := handler(ctx); err != nil {
+				e.HTTPErrorHandler(err, ctx)
+			}
+			if w.Code != 400 || strings.Contains(w.Body.String(), "private") {
+				t.Fatal(dir, w.Code, w.Body.String())
+			}
+		}
+	}
+}

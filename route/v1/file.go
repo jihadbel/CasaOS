@@ -10,9 +10,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
-	url2 "net/url"
 	"os"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -189,14 +187,7 @@ func GetDownloadFile(ctx echo.Context) error {
 		}
 		if !info.IsDir() {
 
-			// 打开文件
-			fileTmp, _ := os.Open(filePath)
-			defer fileTmp.Close()
-
-			// 获取文件的名称
-			fileName := path.Base(filePath)
-			ctx.Response().Header().Add("Content-Disposition", "attachment; filename*=utf-8''"+url2.PathEscape(fileName))
-			return ctx.File(filePath)
+			return serveDownloadFile(ctx, filePath, true)
 		}
 	}
 
@@ -234,12 +225,26 @@ func GetDownloadFile(ctx echo.Context) error {
 }
 
 func GetDownloadSingleFile(ctx echo.Context) error {
-	filePath := ctx.QueryParam("path")
+	return serveDownloadFile(ctx, ctx.QueryParam("path"), false)
+}
+
+// GetDownloadAttachment shares file validation with previews but forces download.
+func GetDownloadAttachment(ctx echo.Context) error {
+	return serveDownloadFile(ctx, ctx.QueryParam("path"), true)
+}
+
+func serveDownloadFile(ctx echo.Context, filePath string, attachment bool) error {
 	if len(filePath) == 0 {
 		return ctx.JSON(common_err.CLIENT_ERROR, model.Result{
 			Success: common_err.INVALID_PARAMS,
 			Message: common_err.GetMsg(common_err.INVALID_PARAMS),
 		})
+	}
+	if file.InternalStoragePath(filePath) {
+		return echo.NewHTTPError(http.StatusBadRequest, "Internal storage cannot be downloaded")
+	}
+	if err := safefs.NoLinks(filePath); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Links cannot be downloaded")
 	}
 	fi, err := os.Open(filePath)
 	if err != nil {
@@ -270,6 +275,9 @@ func GetDownloadSingleFile(ctx echo.Context) error {
 	}
 	if contentType == "" {
 		contentType = "application/octet-stream"
+	}
+	if attachment {
+		disposition = "attachment"
 	}
 	headers := ctx.Response().Header()
 	headers.Set("Content-Type", contentType)
@@ -582,11 +590,11 @@ func PostFileUpload(ctx echo.Context) error {
 			return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
 		}
 
-		fileNum, err := ioutil.ReadDir(tempDir)
+		ready, err := uploadChunksReady(tempDir, totalChunks)
 		if err != nil {
 			return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
 		}
-		if err == nil && totalChunks == len(fileNum) {
+		if ready {
 			staged, err := os.CreateTemp(targetDir, ".casaos-upload-*")
 			if err != nil {
 				return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
@@ -870,6 +878,12 @@ func PutFileContent(ctx echo.Context) error {
 // @Router /file/image [get]
 func GetFileImage(ctx echo.Context) error {
 	if ctx.QueryParam("type") == "thumbnail" {
+		if file.InternalStoragePath(ctx.QueryParam("path")) {
+			return echo.NewHTTPError(http.StatusBadRequest, "Internal storage cannot be downloaded")
+		}
+		if err := safefs.NoLinks(ctx.QueryParam("path")); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "Links cannot be downloaded")
+		}
 		data, err := file.GetImage(ctx.QueryParam("path"), 100, 0)
 		if err != nil {
 			return ctx.JSON(common_err.SERVICE_ERROR, model.Result{Success: common_err.SERVICE_ERROR, Message: common_err.GetMsg(common_err.SERVICE_ERROR), Data: err.Error()})

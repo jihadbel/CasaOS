@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"github.com/IceWhaleTech/CasaOS/pkg/config"
 	"github.com/IceWhaleTech/CasaOS/pkg/localauth"
 	"github.com/IceWhaleTech/CasaOS/pkg/utils/file"
+	v1Route "github.com/IceWhaleTech/CasaOS/route/v1"
 
 	"github.com/IceWhaleTech/CasaOS-Common/external"
 	"github.com/IceWhaleTech/CasaOS-Common/utils/jwt"
@@ -147,6 +147,7 @@ func InitV2DocRouter(docHTML string, docYAML string) http.Handler {
 }
 
 func InitFile() http.Handler {
+	e := echo.New()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !localauth.Authenticated(r) {
 			token := r.URL.Query().Get("token")
@@ -166,10 +167,14 @@ func InitFile() http.Handler {
 			}
 		}
 
-		filePath := r.URL.Query().Get("path")
-		fileName := path.Base(filePath)
-		w.Header().Add("Content-Disposition", "attachment; filename*=utf-8''"+url.PathEscape(fileName))
-		http.ServeFile(w, r, filePath)
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		ctx := e.NewContext(r, w)
+		if err := v1Route.GetDownloadAttachment(ctx); err != nil {
+			e.HTTPErrorHandler(err, ctx)
+		}
 	})
 }
 

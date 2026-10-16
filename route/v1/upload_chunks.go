@@ -88,3 +88,20 @@ func writeUploadChunk(dir string, number int, source io.Reader) error {
 	}
 	return nil
 }
+
+// Only published, numbered regular files count as complete upload chunks.
+func uploadChunksReady(dir string, total int) (bool, error) {
+	for number := 1; number <= total; number++ {
+		info, err := os.Lstat(filepath.Join(dir, strconv.Itoa(number)))
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if !info.Mode().IsRegular() {
+			return false, fmt.Errorf("invalid upload chunk %d", number)
+		}
+	}
+	return true, nil
+}
