@@ -771,13 +771,16 @@ func PostOperateFileOrDir(ctx echo.Context) error {
 // @Router /file/delete [delete]
 func DeleteFile(ctx echo.Context) error {
 	paths := []string{}
-	ctx.Bind(&paths)
-	if len(paths) == 0 {
+	if err := ctx.Bind(&paths); err != nil || len(paths) == 0 {
 		return ctx.JSON(common_err.CLIENT_ERROR, model.Result{Success: common_err.INVALID_PARAMS, Message: common_err.GetMsg(common_err.INVALID_PARAMS)})
 	}
-	//	path := ctx.QueryParam("path")
-
-	//	paths := strings.Split(path, ",")
+	for index, raw := range paths {
+		clean, err := file.ValidateDeletePath(raw)
+		if err != nil {
+			return ctx.JSON(http.StatusBadRequest, model.Result{Success: http.StatusBadRequest, Message: err.Error()})
+		}
+		paths[index] = clean
+	}
 	for _, v := range paths {
 		mounted := service.IsMounted(v)
 		if mounted {
