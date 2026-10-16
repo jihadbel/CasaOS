@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/IceWhaleTech/CasaOS-Common/utils/logger"
@@ -47,7 +48,7 @@ var DefaultTimeout = time.Second * 30
 
 func NewRestyClient() *resty.Client {
 	client := resty.New()
-	client.SetRetryCount(3).SetRetryWaitTime(5 * time.Second).SetTimeout(DefaultTimeout).SetHeader("User-Agent", UserAgent)
+	client.SetRetryCount(3).SetRetryWaitTime(5*time.Second).SetTimeout(DefaultTimeout).SetHeader("User-Agent", UserAgent)
 
 	if runtime.GOOS == "windows" {
 		client.SetBaseURL("http://127.0.0.1:5572")
@@ -66,17 +67,23 @@ func NewRestyClient() *resty.Client {
 }
 
 func GetMountList() (MountList, error) {
+	return getMountList(NewRestyClient())
+}
+
+func getMountList(client *resty.Client) (MountList, error) {
 	var result MountList
-	res, err := NewRestyClient().R().Post("/mount/listmounts")
+	res, err := client.R().Post("/mount/listmounts")
 	if err != nil {
 		return result, err
 	}
 	if res.StatusCode() != 200 {
 		return result, fmt.Errorf("get mount list failed")
 	}
-	json.Unmarshal(res.Body(), &result)
+	if err := json.Unmarshal(res.Body(), &result); err != nil {
+		return result, err
+	}
 	for i := 0; i < len(result.MountPoints); i++ {
-		result.MountPoints[i].Fs = result.MountPoints[i].Fs[:len(result.MountPoints[i].Fs)-1]
+		result.MountPoints[i].Fs = strings.TrimSuffix(result.MountPoints[i].Fs, ":")
 	}
 	return result, err
 }
