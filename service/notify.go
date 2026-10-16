@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/IceWhaleTech/CasaOS-Common/external"
 	"github.com/IceWhaleTech/CasaOS-Common/utils/logger"
 	"github.com/IceWhaleTech/CasaOS/common"
+	"github.com/IceWhaleTech/CasaOS/pkg/config"
 
 	"github.com/IceWhaleTech/CasaOS/model/notify"
 	"github.com/IceWhaleTech/CasaOS/service/model"
@@ -53,17 +55,26 @@ func (i *notifyServer) SettingSystemTempData(message map[string]interface{}) {
 }
 
 func (i *notifyServer) SendNotify(name string, message map[string]interface{}) {
+	if MyService == nil {
+		return
+	}
+	// Missing discovery data is expected in standalone mode; retry next event
+	// so an integration started later can become available without a restart.
+	if _, err := external.GetMessageBusAddress(config.CommonInfo.RuntimePath); err != nil {
+		return
+	}
 	msg := make(map[string]string)
 	for k, v := range message {
 		bt, _ := json.Marshal(v)
 		msg[k] = string(bt)
 	}
-	if MyService == nil {
-		return
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	response, err := MyService.MessageBus().PublishEventWithResponse(ctx, common.SERVICENAME, name, msg)
+	client := MyService.MessageBus()
+	if client == nil {
+		return
+	}
+	response, err := client.PublishEventWithResponse(ctx, common.SERVICENAME, name, msg)
 	if err != nil {
 		logger.Error("failed to publish event to message bus", zap.Error(err), zap.Any("event", msg))
 		return
