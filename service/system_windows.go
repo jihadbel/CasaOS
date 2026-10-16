@@ -14,8 +14,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/shirou/gopsutil/v3/host"
 )
 
 var (
@@ -25,8 +23,8 @@ var (
 )
 
 func (c *systemService) GetDeviceTree() string {
-	h, err := host.Info()
-	if err != nil {
+	h := c.GetSysInfo()
+	if h.Platform == "" {
 		return "Windows System"
 	}
 	return fmt.Sprintf("%s (%s %s)", h.Platform, h.PlatformVersion, h.KernelArch)
@@ -99,7 +97,7 @@ func (s *systemService) GetTimeZone() string {
 }
 
 func (s *systemService) GetSystemConfigDebug() []string {
-	h, _ := host.Info()
+	h := s.GetSysInfo()
 	return []string{
 		fmt.Sprintf("OS: %s %s", h.Platform, h.PlatformVersion),
 		fmt.Sprintf("Arch: %s", runtime.GOARCH),

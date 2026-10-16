@@ -65,7 +65,12 @@ type SystemService interface {
 	GetSystemEntry() string
 	GenreateSystemEntry()
 }
-type systemService struct{}
+type systemService struct {
+	sampleCPU    func(time.Duration, bool) ([]float64, error)
+	sampleHost   func() (*host.InfoStat, error)
+	sampleMemory func() (*mem.VirtualMemoryStat, error)
+	disks        diskInfoCache
+}
 
 func (c *systemService) GetDeviceInfo() model.DeviceInfo {
 	m := model.DeviceInfo{}
@@ -98,10 +103,7 @@ func (c *systemService) GetDeviceInfo() model.DeviceInfo {
 	}
 
 	m.LanIpv4 = ip
-	h, err := host.Info() /*  */
-	if err == nil {
-		m.DeviceName = h.Hostname
-	}
+	m.DeviceName = c.GetSysInfo().Hostname
 	mb := model.BaseInfo{}
 
 	err = json.Unmarshal(file.ReadFullFile(config.AppInfo.DBPath+"/baseinfo.conf"), &mb)
@@ -239,7 +241,14 @@ func (c *systemService) CreateFile(path string) (int, error) {
 }
 
 func (c *systemService) GetSysInfo() host.InfoStat {
-	info, _ := host.Info()
+	read := c.sampleHost
+	if read == nil {
+		read = host.Info
+	}
+	info, err := read()
+	if err != nil || info == nil {
+		return host.InfoStat{}
+	}
 	return *info
 }
 
@@ -259,42 +268,7 @@ func (c *systemService) GetDiskInfo() *disk.UsageStat {
 }
 
 func (c *systemService) GetAllDisksInfo() []map[string]interface{} {
-	var list []map[string]interface{}
-	if runtime.GOOS == "windows" {
-		for _, letter := range "CDEFGHIJKLMNOPQRSTUVWXYZAB" {
-			driveRoot := string(letter) + ":\\"
-			if _, err := os.Stat(driveRoot); err == nil {
-				usage, err := disk.Usage(string(letter) + ":")
-				if err == nil && usage != nil && usage.Total > 0 {
-					usedPct, _ := strconv.ParseFloat(fmt.Sprintf("%.1f", usage.UsedPercent), 64)
-					list = append(list, map[string]interface{}{
-						"name":        string(letter) + ": Drive",
-						"path":        string(letter) + ":\\",
-						"drive":       string(letter),
-						"total":       usage.Total,
-						"used":        usage.Used,
-						"free":        usage.Free,
-						"usedPercent": usedPct,
-					})
-				}
-			}
-		}
-	} else {
-		usage, _ := disk.Usage("/")
-		if usage != nil {
-			usedPct, _ := strconv.ParseFloat(fmt.Sprintf("%.1f", usage.UsedPercent), 64)
-			list = append(list, map[string]interface{}{
-				"name":        "Root Storage",
-				"path":        "/",
-				"drive":       "/",
-				"total":       usage.Total,
-				"used":        usage.Used,
-				"free":        usage.Free,
-				"usedPercent": usedPct,
-			})
-		}
-	}
-	return list
+	return c.disks.snapshot(readDisksInfo)
 }
 
 func (c *systemService) GetDirPathOne(path string) (m model.Path) {
@@ -308,22 +282,6 @@ func (c *systemService) GetDirPathOne(path string) (m model.Path) {
 	m.Size = f.Size()
 	m.Date = f.ModTime()
 	return
-}
-
-func getWindowsDrives() []model.Path {
-	var drives []model.Path
-	for _, letter := range "CDEFGHIJKLMNOPQRSTUVWXYZAB" {
-		drivePath := string(letter) + ":\\"
-		if _, err := os.Stat(drivePath); err == nil {
-			drives = append(drives, model.Path{
-				Name:  string(letter) + ": Drive",
-				Path:  string(letter) + ":\\",
-				IsDir: true,
-				Date:  time.Now(),
-			})
-		}
-	}
-	return drives
 }
 
 func (c *systemService) GetDirPath(path string) ([]model.Path, error) {
@@ -413,7 +371,14 @@ func (c *systemService) GetCpuInfo() []cpu.InfoStat {
 }
 
 func (c *systemService) GetMemInfo() map[string]interface{} {
-	memInfo, _ := mem.VirtualMemory()
+	read := c.sampleMemory
+	if read == nil {
+		read = mem.VirtualMemory
+	}
+	memInfo, err := read()
+	if err != nil || memInfo == nil {
+		memInfo = &mem.VirtualMemoryStat{}
+	}
 	memInfo.UsedPercent, _ = strconv.ParseFloat(fmt.Sprintf("%.1f", memInfo.UsedPercent), 64)
 	memData := make(map[string]interface{})
 	memData["total"] = memInfo.Total
@@ -425,7 +390,14 @@ func (c *systemService) GetMemInfo() map[string]interface{} {
 }
 
 func (c *systemService) GetCpuPercent() float64 {
-	percent, _ := cpu.Percent(0, false)
+	read := c.sampleCPU
+	if read == nil {
+		read = cpu.Percent
+	}
+	percent, err := read(0, false)
+	if err != nil || len(percent) == 0 {
+		return 0
+	}
 	value, _ := strconv.ParseFloat(fmt.Sprintf("%.1f", percent[0]), 64)
 	return value
 }
