@@ -16,9 +16,11 @@ import (
 	"github.com/IceWhaleTech/CasaOS-Common/utils/file"
 	"github.com/IceWhaleTech/CasaOS-Common/utils/logger"
 	"github.com/IceWhaleTech/CasaOS/common"
+	"github.com/IceWhaleTech/CasaOS/internal/safefs"
 	"github.com/IceWhaleTech/CasaOS/model"
 	"github.com/IceWhaleTech/CasaOS/pkg/config"
 	"github.com/IceWhaleTech/CasaOS/pkg/utils/common_err"
+	localfile "github.com/IceWhaleTech/CasaOS/pkg/utils/file"
 	"github.com/IceWhaleTech/CasaOS/pkg/utils/httper"
 	"github.com/IceWhaleTech/CasaOS/pkg/utils/ip_helper"
 	"github.com/tidwall/gjson"
@@ -193,6 +195,9 @@ func (c *systemService) GetMacAddress() (string, error) {
 }
 
 func (c *systemService) MkdirAll(path string) (int, error) {
+	if _, err := localfile.ValidateUserPath(path); err != nil {
+		return common_err.INVALID_PARAMS, err
+	}
 	_, err := os.Stat(path)
 	if err == nil {
 		return common_err.DIR_ALREADY_EXISTS, nil
@@ -210,34 +215,51 @@ func (c *systemService) MkdirAll(path string) (int, error) {
 }
 
 func (c *systemService) RenameFile(oldF, newF string) (int, error) {
-	_, err := os.Stat(newF)
-	if err == nil {
-		return common_err.DIR_ALREADY_EXISTS, nil
-	} else {
-		if os.IsNotExist(err) {
-			err := os.Rename(oldF, newF)
-			if err != nil {
-				return common_err.SERVICE_ERROR, err
-			}
-			return common_err.SUCCESS, nil
-		}
+	var err error
+	if oldF, err = localfile.ValidateDeletePath(oldF); err != nil {
+		return common_err.INVALID_PARAMS, err
 	}
-	return common_err.SERVICE_ERROR, err
+	if newF, err = localfile.ValidateDeletePath(newF); err != nil {
+		return common_err.INVALID_PARAMS, err
+	}
+	if newInfo, statErr := os.Lstat(newF); statErr == nil {
+		oldInfo, oldErr := os.Lstat(oldF)
+		// Only the spelling of the same path may change. A hard link at a
+		// different path must still be treated as a destination conflict.
+		if oldErr != nil || !strings.EqualFold(oldF, newF) || !os.SameFile(oldInfo, newInfo) {
+			return common_err.DIR_ALREADY_EXISTS, nil
+		}
+		err = os.Rename(oldF, newF)
+	} else if !os.IsNotExist(statErr) {
+		err = statErr
+	} else {
+		err = safefs.NoReplace(oldF, newF)
+	}
+	if err != nil {
+		if os.IsExist(err) {
+			return common_err.DIR_ALREADY_EXISTS, nil
+		}
+		return common_err.SERVICE_ERROR, err
+	}
+	return common_err.SUCCESS, nil
 }
 
 func (c *systemService) CreateFile(path string) (int, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return common_err.FILE_OR_DIR_EXISTS, nil
-	} else {
-		if os.IsNotExist(err) {
-			if err := file.CreateFile(path); err != nil {
-				return common_err.SERVICE_ERROR, err
-			}
-			return common_err.SUCCESS, nil
-		}
+	path, err := localfile.ValidateUserPath(path)
+	if err != nil {
+		return common_err.INVALID_PARAMS, err
 	}
-	return common_err.SERVICE_ERROR, err
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if os.IsExist(err) {
+		return common_err.FILE_OR_DIR_EXISTS, nil
+	}
+	if err != nil {
+		return common_err.SERVICE_ERROR, err
+	}
+	if err := f.Close(); err != nil {
+		return common_err.SERVICE_ERROR, err
+	}
+	return common_err.SUCCESS, nil
 }
 
 func (c *systemService) GetSysInfo() host.InfoStat {
@@ -345,7 +367,7 @@ func (c *systemService) GetDirPath(path string) ([]model.Path, error) {
 			tempFile, err := l.Info()
 			if err != nil {
 				logger.Error("when read dir", zap.Error(err))
-				return []model.Path{}, err
+				continue
 			}
 			temp := model.Path{Name: l.Name(), Path: filePath, IsDir: l.IsDir(), Date: tempFile.ModTime(), Size: tempFile.Size()}
 			if filePath != link {
@@ -437,12 +459,42 @@ func (s *systemService) GetCasaOSLogs(lineNumber int) string {
 		return err.Error()
 	}
 	defer file.Close()
-	content, err := io.ReadAll(file)
+	if lineNumber <= 0 {
+		return ""
+	}
+	if lineNumber > 10000 {
+		lineNumber = 10000
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return err.Error()
+	}
+	// Bound even a log consisting of one enormous line to one MiB.
+	start := info.Size() - (1 << 20)
+	if start < 0 {
+		start = 0
+	}
+	if _, err := file.Seek(start, io.SeekStart); err != nil {
+		return err.Error()
+	}
+	content, err := io.ReadAll(io.LimitReader(file, 1<<20))
 	if err != nil {
 		return err.Error()
 	}
 
-	return string(content)
+	text := strings.TrimSuffix(string(content), "\n")
+	lines := strings.Split(text, "\n")
+	if start > 0 && len(lines) > 1 {
+		lines = lines[1:]
+	}
+	if len(lines) > lineNumber {
+		lines = lines[len(lines)-lineNumber:]
+	}
+	result := strings.Join(lines, "\n")
+	if len(content) > 0 && content[len(content)-1] == '\n' {
+		result += "\n"
+	}
+	return result
 }
 
 func GetDeviceAllIP() []string {

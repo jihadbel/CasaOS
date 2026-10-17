@@ -64,7 +64,17 @@ func TestBatchFolderDownloadExcludesInternalFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(z.File) != 1 || z.File[0].Name != "visible.txt" {
-		t.Fatalf("unexpected export: %+v", z.File)
+	visible := 0
+	for _, entry := range z.File {
+		if entry.FileInfo().IsDir() {
+			continue
+		}
+		if !strings.HasSuffix(entry.Name, "/visible.txt") {
+			t.Fatalf("internal data exported: %s", entry.Name)
+		}
+		visible++
+	}
+	if visible != 1 {
+		t.Fatalf("visible file missing: %+v", z.File)
 	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,12 +42,8 @@ func handleZip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req ZipRequest
-	if err := decodeAPI(w, r, &req); err != nil || len(req.Files) == 0 {
-		apiError(w, 400, errors.New("files are required"))
-		return
-	}
-	if len(req.Files) > 10000 {
-		apiError(w, 400, errors.New("too many source paths"))
+	if err := decodeAPI(w, r, &req); err != nil || len(req.Files) == 0 || len(req.Files) > 10000 {
+		apiError(w, 400, errors.New("between 1 and 10000 source paths are required"))
 		return
 	}
 	output := req.Output
@@ -55,41 +52,27 @@ func handleZip(w http.ResponseWriter, r *http.Request) {
 		name := fileutil.ArchiveBase(first)
 		output = filepath.Join(filepath.Dir(first), strings.TrimSuffix(name, filepath.Ext(name))+".zip")
 	}
-	output, err := filepath.Abs(output)
+	output, err := fileutil.ValidateUserPath(output)
 	if err != nil {
 		apiError(w, 400, err)
 		return
 	}
-	if runtime.GOOS == "windows" && strings.Contains(filepath.Base(output), ":") {
-		apiError(w, 400, errors.New("archive output cannot use an NTFS alternate data stream"))
-		return
-	}
-	// Never truncate a source, an existing archive, or a destination reached through a link.
-	if err := safefs.NoLinks(output); err != nil {
-		apiError(w, 400, err)
-		return
-	}
-	for i, source := range req.Files {
-		source, err = filepath.Abs(source)
-		if err != nil {
-			apiError(w, 400, err)
-			return
-		}
+	for _, source := range req.Files {
 		if sameFilePath(source, output) {
 			apiError(w, 409, errors.New("archive output must differ from every source"))
 			return
 		}
-		if _, err := os.Lstat(source); err != nil {
-			apiError(w, 400, err)
-			return
-		}
-		req.Files[i] = source
 	}
 	if _, err := os.Lstat(output); err == nil {
 		apiError(w, 409, errors.New("output already exists"))
 		return
 	} else if !os.IsNotExist(err) {
 		apiError(w, 500, err)
+		return
+	}
+	entries, err := fileutil.CollectArchiveEntries(r.Context(), req.Files, 100000)
+	if err != nil {
+		apiError(w, 400, err)
 		return
 	}
 	if err := os.MkdirAll(filepath.Dir(output), 0755); err != nil {
@@ -104,71 +87,46 @@ func handleZip(w http.ResponseWriter, r *http.Request) {
 	defer os.Remove(staged.Name())
 	defer staged.Close()
 	archive := zip.NewWriter(staged)
-	seen := map[string]bool{}
-	for _, source := range req.Files {
-		base := filepath.Dir(source)
-		err = filepath.Walk(source, func(p string, info os.FileInfo, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if sameFilePath(p, staged.Name()) || sameFilePath(p, output) {
-				return nil
-			}
-			if fileutil.InternalStoragePath(p) {
-				if sameFilePath(p, source) {
-					return errors.New("internal storage cannot be archived")
-				}
-				if info.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if err := safefs.NoLinks(p); err != nil {
-				return err
-			}
-			if !info.IsDir() && !info.Mode().IsRegular() {
-				return fmt.Errorf("unsupported source: %s", p)
-			}
-			rel, err := filepath.Rel(base, p)
-			if err != nil {
-				return err
-			}
-			name := filepath.ToSlash(rel)
-			if fileutil.IsFilesystemRoot(source) {
-				name = filepath.ToSlash(filepath.Join(fileutil.ArchiveBase(source), rel))
-			}
-			key := name
-			if runtime.GOOS == "windows" {
-				key = strings.ToLower(key)
-			}
-			if seen[key] {
-				return fmt.Errorf("duplicate archive entry: %s", name)
-			}
-			seen[key] = true
-			header, err := zip.FileInfoHeader(info)
-			if err != nil {
-				return err
-			}
-			header.Name = name
-			if info.IsDir() {
-				header.Name += "/"
-			} else {
-				header.Method = zip.Deflate
-			}
-			writer, err := archive.CreateHeader(header)
-			if err != nil {
-				return err
-			}
-			if info.IsDir() {
-				return nil
-			}
-			f, err := os.Open(p)
-			if err != nil {
-				return err
-			}
-			_, copyErr := io.Copy(writer, f)
-			return errors.Join(copyErr, f.Close())
-		})
+	for _, entry := range entries {
+		if err := r.Context().Err(); err != nil {
+			_ = archive.Close()
+			apiError(w, 400, err)
+			return
+		}
+		header, err := zip.FileInfoHeader(entry.Info)
+		if err != nil {
+			_ = archive.Close()
+			apiError(w, 500, err)
+			return
+		}
+		header.Name = entry.Name
+		if entry.Info.IsDir() {
+			header.Name += "/"
+		} else {
+			header.Method = zip.Deflate
+		}
+		writer, err := archive.CreateHeader(header)
+		if err != nil {
+			_ = archive.Close()
+			apiError(w, 500, err)
+			return
+		}
+		if entry.Info.IsDir() {
+			continue
+		}
+		if err := safefs.NoLinks(entry.Path); err != nil {
+			_ = archive.Close()
+			apiError(w, 400, err)
+			return
+		}
+		input, err := os.Open(entry.Path)
+		if err != nil {
+			_ = archive.Close()
+			apiError(w, 500, err)
+			return
+		}
+		copyErr := fileutil.CopyArchiveFile(r.Context(), writer, input, entry.Info.Size())
+		err = errors.Join(copyErr, input.Close())
 		if err != nil {
 			_ = archive.Close()
 			apiError(w, 500, err)
@@ -185,6 +143,10 @@ func handleZip(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := staged.Close(); err != nil {
 		apiError(w, 500, err)
+		return
+	}
+	if err := r.Context().Err(); err != nil {
+		apiError(w, 400, err)
 		return
 	}
 	if err := safefs.NoReplace(staged.Name(), output); err != nil {
@@ -232,6 +194,10 @@ func handleUnzip(w http.ResponseWriter, r *http.Request) {
 		apiError(w, 400, errors.New("archive path is required"))
 		return
 	}
+	if _, err := fileutil.ValidateUserPath(req.Path); err != nil {
+		apiError(w, 400, err)
+		return
+	}
 	reader, err := zip.OpenReader(req.Path)
 	if err != nil {
 		apiError(w, 400, err)
@@ -242,7 +208,7 @@ func handleUnzip(w http.ResponseWriter, r *http.Request) {
 	if dest == "" {
 		dest = filepath.Join(filepath.Dir(req.Path), strings.TrimSuffix(filepath.Base(req.Path), filepath.Ext(req.Path)))
 	}
-	dest, err = filepath.Abs(dest)
+	dest, err = fileutil.ValidateUserPath(dest)
 	if err != nil {
 		apiError(w, 400, err)
 		return
@@ -268,6 +234,10 @@ func handleUnzip(w http.ResponseWriter, r *http.Request) {
 	seen := map[string]bool{}
 	// Validate every entry before extracting anything.
 	for i, f := range reader.File {
+		if err := r.Context().Err(); err != nil {
+			apiError(w, 400, err)
+			return
+		}
 		rel, err := zipRelative(f.Name)
 		if err != nil {
 			apiError(w, 400, err)
@@ -291,6 +261,10 @@ func handleUnzip(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		expanded += f.UncompressedSize64
+		if _, err := fileutil.ValidateUserPath(filepath.Join(dest, rel)); err != nil {
+			apiError(w, 400, err)
+			return
+		}
 		names[i] = rel
 	}
 	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
@@ -321,7 +295,7 @@ func handleUnzip(w http.ResponseWriter, r *http.Request) {
 			apiError(w, 500, err)
 			return
 		}
-		if err := extractZipFile(f, target); err != nil {
+		if err := extractZipFileContext(r.Context(), f, target); err != nil {
 			apiError(w, 500, err)
 			return
 		}
@@ -334,6 +308,9 @@ func handleUnzip(w http.ResponseWriter, r *http.Request) {
 }
 
 func extractZipFile(entry *zip.File, target string) error {
+	return extractZipFileContext(context.Background(), entry, target)
+}
+func extractZipFileContext(ctx context.Context, entry *zip.File, target string) error {
 	src, err := entry.Open()
 	if err != nil {
 		return err
@@ -343,7 +320,7 @@ func extractZipFile(entry *zip.File, target string) error {
 	if err != nil {
 		return err
 	}
-	n, copyErr := io.Copy(dst, io.LimitReader(src, int64(entry.UncompressedSize64)+1))
+	n, copyErr := io.Copy(dst, fileutil.ContextReader{Context: ctx, Reader: io.LimitReader(src, int64(entry.UncompressedSize64)+1)})
 	if copyErr == nil && uint64(n) != entry.UncompressedSize64 {
 		copyErr = errors.New("archive entry size mismatch")
 	}

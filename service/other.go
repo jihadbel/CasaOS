@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 	"sync"
@@ -101,14 +102,7 @@ func (s *otherService) Search(key string) ([]model.SearchEngine, error) {
 }
 
 func (s *otherService) AgentSearch(url string) ([]byte, error) {
-	client := resty.New()
-	client.SetTimeout(3 * time.Second) // 设置全局超时时间
-	resp, err := client.R().Get(url)
-	if err != nil {
-		logger.Error("Then get search result error: %v", zap.Error(err), zap.String("url", url))
-		return nil, err
-	}
-	return resp.Body(), nil
+	return nil, fmt.Errorf("the legacy URL search proxy is disabled")
 }
 
 func NewOtherService() OtherService {

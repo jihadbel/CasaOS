@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/IceWhaleTech/CasaOS/internal/safefs"
 	"github.com/mholt/archiver/v3"
@@ -322,58 +323,26 @@ func GetCompressionAlgorithm(t string) (string, archiver.Writer, error) {
 }
 
 func AddFile(ar archiver.Writer, path, commonPath string) error {
-	if InternalStoragePath(path) {
-		return nil
-	}
-	if err := safefs.NoLinks(path); err != nil {
-		return err
-	}
-	info, err := os.Stat(path)
+	entries, err := CollectArchiveEntries(context.Background(), []string{path}, 10000)
 	if err != nil {
 		return err
 	}
-
-	if !info.IsDir() && !info.Mode().IsRegular() {
-		return nil
-	}
-
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	if path != commonPath {
-		//filename := info.Name()
-		filename := strings.TrimPrefix(path, commonPath)
-		filename = strings.TrimPrefix(filename, string(filepath.Separator))
-		err = ar.Write(archiver.File{
-			FileInfo: archiver.FileInfo{
-				FileInfo:   info,
-				CustomName: filename,
-			},
-			ReadCloser: file,
-		})
+	filtered := entries[:0]
+	for _, entry := range entries {
+		rel, err := filepath.Rel(commonPath, entry.Path)
 		if err != nil {
 			return err
 		}
-	}
-
-	if info.IsDir() {
-		names, err := file.Readdirnames(0)
-		if err != nil {
-			return err
+		if rel == "." {
+			continue
 		}
-
-		for _, name := range names {
-			err = AddFile(ar, filepath.Join(path, name), commonPath)
-			if err != nil {
-				return err
-			}
+		if !filepath.IsLocal(rel) {
+			return fmt.Errorf("unsafe archive path")
 		}
+		entry.Name = filepath.ToSlash(rel)
+		filtered = append(filtered, entry)
 	}
-
-	return nil
+	return WriteArchiveEntries(context.Background(), ar, filtered)
 }
 
 func CommonPrefix(sep byte, paths ...string) string {
@@ -432,24 +401,43 @@ func CommonPrefix(sep byte, paths ...string) string {
 }
 
 func GetFileOrDirSize(path string) (int64, error) {
+	return GetFileOrDirSizeContext(context.Background(), path)
+}
+
+func GetFileOrDirSizeContext(ctx context.Context, path string) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
 	fileInfo, err := os.Stat(path)
 	if err != nil {
 		return 0, err
 	}
 	if fileInfo.IsDir() {
-		return DirSizeB(path + "/")
+		return dirSizeContext(ctx, path)
 	}
 	return fileInfo.Size(), nil
 }
 
 // getFileSize get file size by path(B)
 func DirSizeB(path string) (int64, error) {
+	return dirSizeContext(context.Background(), path)
+}
+
+func dirSizeContext(parent context.Context, path string) (int64, error) {
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
+	defer cancel()
 	var size int64
-	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+	err := WalkTree(ctx, path, 100000, func(p string, info os.FileInfo) error {
+		if err := safefs.NoLinks(p); err != nil {
+			return err
+		}
 		if !info.IsDir() {
+			if !info.Mode().IsRegular() {
+				return fmt.Errorf("unsupported size entry: %s", p)
+			}
 			size += info.Size()
 		}
-		return err
+		return nil
 	})
 	return size, err
 }

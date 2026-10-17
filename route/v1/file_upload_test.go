@@ -203,3 +203,31 @@ func TestChunkReadinessRejectsNonRegularNumberedEntries(t *testing.T) {
 		t.Fatal("directory counted as a completed part", ready, err)
 	}
 }
+
+func TestConflictingChunkTransferCleansOnlyItsOwnStagingDirectory(t *testing.T) {
+	root := t.TempDir()
+	for _, id := range []string{"A", "B"} {
+		w := testUpload(t, root, "file.txt", "file.txt", id, map[string]string{"uploadId": id, "totalChunks": "2", "chunkNumber": "1"})
+		if w.Code != 200 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "file.txt"), []byte("keep"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	w := testUpload(t, root, "file.txt", "file.txt", "end", map[string]string{"uploadId": "A", "totalChunks": "2", "chunkNumber": "2"})
+	if w.Code != 409 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	a, _ := uploadChunkDir(root, "file.txt", "A", 2, 1)
+	b, _ := uploadChunkDir(root, "file.txt", "B", 2, 1)
+	if _, err := os.Stat(a); !os.IsNotExist(err) {
+		t.Fatal("conflicted chunks retained", err)
+	}
+	if _, err := os.Stat(filepath.Join(b, "1")); err != nil {
+		t.Fatal("other transfer removed", err)
+	}
+	if data, err := os.ReadFile(filepath.Join(root, "file.txt")); err != nil || string(data) != "keep" {
+		t.Fatal(string(data), err)
+	}
+}

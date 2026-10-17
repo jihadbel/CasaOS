@@ -24,8 +24,10 @@ import (
 	"github.com/IceWhaleTech/CasaOS/pkg/config"
 	"github.com/IceWhaleTech/CasaOS/pkg/localauth"
 	"github.com/IceWhaleTech/CasaOS/pkg/sqlite"
+	"github.com/IceWhaleTech/CasaOS/pkg/storagepaths"
 	"github.com/IceWhaleTech/CasaOS/pkg/utils/file"
 	"github.com/IceWhaleTech/CasaOS/route"
+	v1Route "github.com/IceWhaleTech/CasaOS/route/v1"
 	"github.com/IceWhaleTech/CasaOS/service"
 	"github.com/coreos/go-systemd/daemon"
 	"go.uber.org/zap"
@@ -58,11 +60,12 @@ var (
 	//go:embed web/index.html
 	_webIndexHTML string
 
-	configFlag  = flag.String("c", "", "config address")
-	dbFlag      = flag.String("db", "", "db path")
-	versionFlag = flag.Bool("v", false, "version")
-	tlsCertFlag = flag.String("tls-cert", "", "HTTPS certificate PEM file")
-	tlsKeyFlag  = flag.String("tls-key", "", "HTTPS private key PEM file")
+	configFlag     = flag.String("c", "", "config address")
+	dbFlag         = flag.String("db", "", "db path")
+	versionFlag    = flag.Bool("v", false, "version")
+	tlsCertFlag    = flag.String("tls-cert", "", "HTTPS certificate PEM file")
+	tlsKeyFlag     = flag.String("tls-key", "", "HTTPS private key PEM file")
+	standaloneFlag = flag.Bool("standalone", runtime.GOOS == "windows", "Use local administrator login for the standalone dashboard")
 )
 
 func initialize() {
@@ -77,7 +80,14 @@ func initialize() {
 
 	config.InitSetup(*configFlag, _confSample)
 
-	if runtime.GOOS == "windows" {
+	if *standaloneFlag {
+		defaults := storagepaths.Default()
+		if err := storagepaths.Validate(&defaults); err != nil {
+			panic(fmt.Errorf("invalid storage configuration: %w", err))
+		}
+		if file.InternalStoragePath(config.DefaultStorageRoot()) {
+			panic("CASAOS_DATA_ROOT cannot use internal service storage")
+		}
 		for _, folder := range []string{"Photos", "Videos", "Documents", "Music", "Applications", "Archives", "Mobile_Uploads"} {
 			if err := os.MkdirAll(filepath.Join(config.DefaultStorageRoot(), folder), 0755); err != nil {
 				panic(err)
@@ -95,6 +105,7 @@ func initialize() {
 	}
 
 	logger.LogInit(config.AppInfo.LogPath, config.AppInfo.LogSaveName, config.AppInfo.LogFileExt)
+	v1Route.StartUploadCleanup(context.Background())
 	if len(*dbFlag) == 0 {
 		*dbFlag = config.AppInfo.DBPath + "/db"
 	}
@@ -274,7 +285,7 @@ func main() {
 	mainHandler := dashboardHandler(mux)
 
 	var handler http.Handler = mainHandler
-	if runtime.GOOS == "windows" {
+	if *standaloneFlag {
 		authDir := filepath.Join(config.AppInfo.UserDataPath, "auth")
 		auth, err := localauth.New(authDir)
 		if err != nil {

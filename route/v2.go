@@ -2,17 +2,14 @@ package route
 
 import (
 	"crypto/ecdsa"
-	"log"
 	"net/http"
 	"net/url"
-	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/IceWhaleTech/CasaOS/codegen"
 	"github.com/IceWhaleTech/CasaOS/pkg/config"
 	"github.com/IceWhaleTech/CasaOS/pkg/localauth"
-	"github.com/IceWhaleTech/CasaOS/pkg/utils/file"
 	v1Route "github.com/IceWhaleTech/CasaOS/route/v1"
 
 	"github.com/IceWhaleTech/CasaOS-Common/external"
@@ -65,9 +62,10 @@ func InitV2Router() http.Handler {
 		AllowCredentials: true,
 	})))
 
+	e.Use(echo_middleware.Recover())
 	e.Use(echo_middleware.Gzip())
 
-	e.Use(echo_middleware.Logger())
+	e.Use(echo_middleware.LoggerWithConfig(echo_middleware.LoggerConfig{Format: "${method} ${path} ${status}\n"}))
 
 	e.Use(echo_middleware.JWTWithConfig(echo_middleware.JWTConfig{
 		Skipper: func(c echo.Context) bool {
@@ -178,92 +176,24 @@ func InitFile() http.Handler {
 	})
 }
 
+// InitDir uses the same authenticated, bounded export as V1.
 func InitDir() http.Handler {
+	e := echo.New()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := r.URL.Query().Get("token")
-		if len(token) == 0 {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"message": "token not found"}`))
-			return
-		}
-
-		valid, _, errs := jwt.Validate(token, func() (*ecdsa.PublicKey, error) { return external.GetPublicKey(config.CommonInfo.RuntimePath) })
-		if errs != nil || !valid {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"message": "validation failure"}`))
-			return
-		}
-		t := r.URL.Query().Get("format")
-		files := r.URL.Query().Get("files")
-
-		if len(files) == 0 {
-			// w.JSON(common_err.CLIENT_ERROR, model.Result{
-			// 	Success: common_err.INVALID_PARAMS,
-			// 	Message: common_err.GetMsg(common_err.INVALID_PARAMS),
-			// })
-			return
-		}
-		list := strings.Split(files, ",")
-		for _, v := range list {
-			if !file.Exists(v) {
-				// return ctx.JSON(common_err.SERVICE_ERROR, model.Result{
-				// 	Success: common_err.FILE_DOES_NOT_EXIST,
-				// 	Message: common_err.GetMsg(common_err.FILE_DOES_NOT_EXIST),
-				// })
+		if !localauth.Authenticated(r) {
+			valid, _, err := jwt.Validate(r.URL.Query().Get("token"), func() (*ecdsa.PublicKey, error) { return external.GetPublicKey(config.CommonInfo.RuntimePath) })
+			if err != nil || !valid {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
 		}
-		w.Header().Add("Content-Type", "application/octet-stream")
-		w.Header().Add("Content-Transfer-Encoding", "binary")
-		w.Header().Add("Cache-Control", "no-cache")
-		// handles only single files not folders and multiple files
-		//		if len(list) == 1 {
-
-		// filePath := list[0]
-		//			info, err := os.Stat(filePath)
-		//			if err != nil {
-
-		// w.JSON(http.StatusOK, model.Result{
-		// 	Success: common_err.FILE_DOES_NOT_EXIST,
-		// 	Message: common_err.GetMsg(common_err.FILE_DOES_NOT_EXIST),
-		// })
-		//return
-		//			}
-		//}
-
-		extension, ar, err := file.GetCompressionAlgorithm(t)
-		if err != nil {
-			// w.JSON(common_err.CLIENT_ERROR, model.Result{
-			// 	Success: common_err.INVALID_PARAMS,
-			// 	Message: common_err.GetMsg(common_err.INVALID_PARAMS),
-			// })
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-
-		err = ar.Create(w)
-		if err != nil {
-			//  return ctx.JSON(common_err.SERVICE_ERROR, model.Result{
-			// 	Success: common_err.SERVICE_ERROR,
-			// 	Message: common_err.GetMsg(common_err.SERVICE_ERROR),
-			// 	Data:    err.Error(),
-			// })
-			return
-		}
-		defer ar.Close()
-		commonDir := file.CommonPrefix(filepath.Separator, list...)
-
-		currentPath := filepath.Base(commonDir)
-
-		name := "_" + currentPath
-		name += extension
-		w.Header().Add("Content-Disposition", "attachment; filename*=utf-8''"+url.PathEscape(name))
-		for _, fname := range list {
-			err = file.AddFile(ar, fname, commonDir)
-			if err != nil {
-				log.Printf("Failed to archive %s: %v", fname, err)
-			}
+		ctx := e.NewContext(r, w)
+		if err := v1Route.GetDownloadFile(ctx); err != nil {
+			e.HTTPErrorHandler(err, ctx)
 		}
 	})
 }

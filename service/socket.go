@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/google/uuid"
 	"net/http"
 	"strconv"
 	"strings"
@@ -22,7 +23,7 @@ func GetPeerId(request *http.Request, id string) string {
 	if err != nil {
 		return id
 	}
-	if len(cookiePree.Value) > 0 {
+	if _, err := uuid.Parse(cookiePree.Value); err == nil {
 		return cookiePree.Value
 	}
 	return id

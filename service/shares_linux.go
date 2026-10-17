@@ -13,7 +13,6 @@
 package service
 
 import (
-	"path/filepath"
 	"strings"
 
 	"github.com/IceWhaleTech/CasaOS-Common/utils/command"
@@ -24,22 +23,37 @@ import (
 
 func (s *sharesStruct) UpdateConfigFile() error {
 	shares := []model2.SharesDBModel{}
-	s.db.Select("anonymous,path").Find(&shares)
+	if err := s.db.Select("anonymous,read_only,name,path").Find(&shares).Error; err != nil {
+		return err
+	}
 	// generated config file
 	configStr := ""
 	for _, share := range shares {
-		dirName := filepath.Base(share.Path)
+		if err := ValidateSharePath(share.Path); err != nil {
+			return err
+		}
+		dirName, err := ShareName(share.Path, share.Name)
+		if err != nil {
+			return err
+		}
+		readOnly := "No"
+		if share.ReadOnly {
+			readOnly = "Yes"
+		}
+		guest := "No"
+		if share.Anonymous {
+			guest = "Yes"
+		}
 		configStr += `
 [` + dirName + `]
 comment = CasaOS share ` + dirName + `
-public = Yes
+public = ` + guest + `
 path = ` + share.Path + `
 browseable = Yes
-read only = No
-guest ok = Yes
-create mask = 0777
-directory mask = 0777
-force user = root
+read only = ` + readOnly + `
+guest ok = ` + guest + `
+create mask = 0660
+directory mask = 0770
 
 `
 	}

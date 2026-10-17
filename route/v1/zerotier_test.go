@@ -99,3 +99,25 @@ func TestZeroTierProxyPreservesRequestAndUpstreamFailures(t *testing.T) {
 		}
 	}
 }
+
+func TestProxyStripsHopHeadersAndConnectionNamedFields(t *testing.T) {
+	source := http.Header{
+		"Connection":         {"keep-alive, X-Transport-Secret"},
+		"X-Transport-Secret": {"hidden"}, "Transfer-Encoding": {"chunked"},
+		"Content-Length": {"123"}, "Keep-Alive": {"timeout=5"}, "Trailer": {"Digest"},
+		"Content-Type": {"application/json"}, "Set-Cookie": {"a=1", "b=2"},
+	}
+	destination := http.Header{}
+	copyHeaders(destination, source)
+	for _, key := range []string{"Connection", "X-Transport-Secret", "Transfer-Encoding", "Content-Length", "Keep-Alive", "Trailer"} {
+		if destination.Get(key) != "" {
+			t.Fatal("transport header forwarded", key)
+		}
+	}
+	if destination.Get("Content-Type") != "application/json" || len(destination.Values("Set-Cookie")) != 2 {
+		t.Fatal(destination)
+	}
+	if source.Get("Connection") == "" {
+		t.Fatal("source headers mutated")
+	}
+}

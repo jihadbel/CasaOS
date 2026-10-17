@@ -73,7 +73,21 @@ func zerotierProxy(ctx echo.Context, portFile, authFile string, client *http.Cli
 }
 
 func copyHeaders(destination, source http.Header) {
+	blocked := map[string]bool{
+		"Connection": true, "Proxy-Connection": true, "Keep-Alive": true,
+		"Proxy-Authenticate": true, "Proxy-Authorization": true, "Te": true,
+		"Trailer": true, "Transfer-Encoding": true, "Upgrade": true,
+		"Content-Length": true,
+	}
+	for _, value := range source.Values("Connection") {
+		for _, token := range strings.Split(value, ",") {
+			blocked[http.CanonicalHeaderKey(strings.TrimSpace(token))] = true
+		}
+	}
 	for key, values := range source {
+		if blocked[http.CanonicalHeaderKey(key)] {
+			continue
+		}
 		for _, value := range values {
 			destination.Add(key, value)
 		}

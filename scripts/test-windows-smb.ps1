@@ -13,6 +13,7 @@ $script:removedShares = @()
 $script:createdShares = @()
 $script:lastPassword = ''
 $script:lastRemote = ''
+$script:access = @()
 function Get-SmbShare {
     [pscustomobject]@{ Name = 'old'; Path = 'C:\old'; Description = 'CasaOS share old' }
     [pscustomobject]@{ Name = 'keep'; Path = 'C:\keep'; Description = 'CasaOS managed share' }
@@ -24,8 +25,19 @@ function Remove-SmbShare {
     $script:removedShares += $Name
 }
 function New-SmbShare {
-    param([string]$Name, [string]$Path, [string]$FullAccess, [string]$Description)
+    param([string]$Name, [string]$Path, [string]$ReadAccess, [string]$ChangeAccess, [string]$FullAccess, [string]$Description)
+    if ($FullAccess) { throw 'CasaOS must not grant FullAccess.' }
     $script:createdShares += $Name
+    $script:access += [pscustomobject]@{Name=$Name; Path=$Path; Read=$ReadAccess; Change=$ChangeAccess}
+}
+function Revoke-SmbShareAccess {
+    [CmdletBinding(SupportsShouldProcess=$true)]
+    param([string]$Name, [string]$AccountName, [switch]$Force)
+}
+function Grant-SmbShareAccess {
+    [CmdletBinding(SupportsShouldProcess=$true)]
+    param([string]$Name, [string]$AccountName, [string]$AccessRight, [switch]$Force)
+    $script:access += [pscustomobject]@{Name=$Name; Account=$AccountName; Right=$AccessRight}
 }
 function New-SmbMapping {
     param([string]$RemotePath, [string]$UserName, [string]$Password, [bool]$Persistent)
@@ -37,7 +49,7 @@ function Remove-SmbMapping {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param([switch]$Force)
 }
-foreach ($name in @('Get-SmbShare', 'Remove-SmbShare', 'New-SmbShare', 'New-SmbMapping', 'Get-SmbMapping', 'Remove-SmbMapping')) {
+foreach ($name in @('Get-SmbShare', 'Remove-SmbShare', 'New-SmbShare', 'Revoke-SmbShareAccess', 'Grant-SmbShareAccess', 'New-SmbMapping', 'Get-SmbMapping', 'Remove-SmbMapping')) {
     if ((Get-Command $name).ModuleName) { throw "Mock missing for $name; refusing to run." }
 }
 
@@ -50,6 +62,20 @@ foreach ($code in @($sharesScript, $connectionScripts[0].Groups[1].Value, $conne
 $env:CASAOS_SMB_SHARES = '[{"Name":"keep","Path":"C:\\keep"}]'
 & ([ScriptBlock]::Create($sharesScript))
 if ($script:removedShares.Count -ne 1 -or $script:removedShares[0] -ne 'old') { throw 'Deleted share was not removed, or unrelated shares were touched.' }
+if ($script:createdShares.Count -ne 0) { throw 'Unchanged share was recreated.' }
+
+$script:removedShares = @()
+$script:access = @()
+$env:CASAOS_SMB_SHARES = '[{"Name":"keep","Path":"D:\\new","ReadOnly":true}]'
+& ([ScriptBlock]::Create($sharesScript))
+if ($script:removedShares -notcontains 'keep') { throw 'Changed CasaOS path was not reconciled.' }
+$created = $script:access | Where-Object Name -eq 'keep' | Select-Object -Last 1
+if ($created.Path -ne 'D:\new' -or -not $created.Read -or $created.Change) { throw 'Read-only access or changed path was lost.' }
+
+$env:CASAOS_SMB_SHARES = '[{"Name":"unrelated","Path":"C:\\other"}]'
+$rejected = $false
+try { & ([ScriptBlock]::Create($sharesScript)) } catch { $rejected = $true }
+if (-not $rejected) { throw 'Foreign share was not protected.' }
 
 $script:removedShares = @()
 $env:CASAOS_SMB_SHARES = '[]'

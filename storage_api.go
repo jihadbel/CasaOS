@@ -5,65 +5,24 @@ import (
 	"errors"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sort"
 	"sync"
 
 	"github.com/IceWhaleTech/CasaOS/internal/safefs"
-	"github.com/IceWhaleTech/CasaOS/pkg/config"
+	"github.com/IceWhaleTech/CasaOS/pkg/storagepaths"
 )
 
-type StorageSettings struct {
-	SmartAutoSort bool   `json:"smartAutoSort"`
-	AppsPath      string `json:"appsPath"`
-	ArchivesPath  string `json:"archivesPath"`
-	PhotosPath    string `json:"photosPath"`
-	VideosPath    string `json:"videosPath"`
-	DocumentsPath string `json:"documentsPath"`
-	MusicPath     string `json:"musicPath"`
-	MobilePath    string `json:"mobilePath"`
-	DefaultPath   string `json:"defaultPath"`
-}
+type StorageSettings = storagepaths.Settings
 
 var settingsMutex sync.Mutex
 
-func defaultStorageSettings() StorageSettings {
-	root := config.DefaultStorageRoot()
-	return StorageSettings{true, filepath.Join(root, "Applications"), filepath.Join(root, "Archives"), filepath.Join(root, "Photos"), filepath.Join(root, "Videos"), filepath.Join(root, "Documents"), filepath.Join(root, "Music"), filepath.Join(root, "Mobile_Uploads"), root}
-}
+func defaultStorageSettings() StorageSettings { return storagepaths.Default() }
 
-func storageSettingsFile() string {
-	return filepath.Join(config.AppInfo.UserDataPath, "storage-paths.json")
-}
+func storageSettingsFile() string { return storagepaths.File() }
 
-func readStorageSettings() (StorageSettings, bool, error) {
-	settings := defaultStorageSettings()
-	data, err := os.ReadFile(storageSettingsFile())
-	if os.IsNotExist(err) {
-		return settings, false, nil
-	}
-	if err != nil {
-		return settings, false, err
-	}
-	if err := json.Unmarshal(data, &settings); err != nil {
-		return settings, true, err
-	}
-	return settings, true, validateStorageSettings(&settings)
-}
+func readStorageSettings() (StorageSettings, bool, error) { return storagepaths.Read() }
 
-func validateStorageSettings(s *StorageSettings) error {
-	for _, path := range []*string{&s.AppsPath, &s.ArchivesPath, &s.PhotosPath, &s.VideosPath, &s.DocumentsPath, &s.MusicPath, &s.MobilePath, &s.DefaultPath} {
-		if !filepath.IsAbs(*path) {
-			return errors.New("storage paths must be absolute")
-		}
-		*path = filepath.Clean(*path)
-		if err := safefs.NoLinks(*path); err != nil {
-			return err
-		}
-	}
-	return nil
-}
+func validateStorageSettings(s *StorageSettings) error { return storagepaths.Validate(s) }
 
 func handleStorageSettings(w http.ResponseWriter, r *http.Request) {
 	settingsMutex.Lock()

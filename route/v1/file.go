@@ -9,7 +9,6 @@ import (
 	"log"
 	"mime"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -72,8 +71,6 @@ var (
 			return true
 		},
 	}
-	conn *websocket.Conn
-	err  error
 )
 
 // @Summary 读取文件
@@ -86,6 +83,9 @@ var (
 // @Router /file/read [get]
 func GetFilerContent(ctx echo.Context) error {
 	filePath := ctx.QueryParam("path")
+	if _, err := file.ValidateUserPath(filePath); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
 	if len(filePath) == 0 {
 		return ctx.JSON(common_err.CLIENT_ERROR, model.Result{
 			Success: common_err.INVALID_PARAMS,
@@ -123,20 +123,7 @@ func GetFilerContent(ctx echo.Context) error {
 }
 
 func GetLocalFile(ctx echo.Context) error {
-	path := ctx.QueryParam("path")
-	if len(path) == 0 {
-		return ctx.JSON(http.StatusOK, model.Result{
-			Success: common_err.INVALID_PARAMS,
-			Message: common_err.GetMsg(common_err.INVALID_PARAMS),
-		})
-	}
-	if !file.Exists(path) {
-		return ctx.JSON(http.StatusOK, model.Result{
-			Success: common_err.FILE_DOES_NOT_EXIST,
-			Message: common_err.GetMsg(common_err.FILE_DOES_NOT_EXIST),
-		})
-	}
-	return ctx.File(path)
+	return GetDownloadSingleFile(ctx)
 }
 
 // @Summary download
@@ -149,79 +136,46 @@ func GetLocalFile(ctx echo.Context) error {
 // @Success 200 {string} string "ok"
 // @Router /file/download [get]
 func GetDownloadFile(ctx echo.Context) error {
-	t := ctx.QueryParam("format")
-
-	files := ctx.QueryParam("files")
-
-	if len(files) == 0 {
-		return ctx.JSON(common_err.CLIENT_ERROR, model.Result{
-			Success: common_err.INVALID_PARAMS,
-			Message: common_err.GetMsg(common_err.INVALID_PARAMS),
-		})
-	}
-	list := strings.Split(files, ",")
-	for _, v := range list {
-		if file.InternalStoragePath(v) {
-			return echo.NewHTTPError(http.StatusBadRequest, "Internal storage cannot be downloaded")
+	roots := strings.Split(ctx.QueryParam("files"), ",")
+	if len(roots) == 1 {
+		if _, err := file.ValidateUserPath(roots[0]); err != nil {
+			return echo.NewHTTPError(400, err.Error())
 		}
-		if !file.Exists(v) {
-			return ctx.JSON(common_err.SERVICE_ERROR, model.Result{
-				Success: common_err.FILE_DOES_NOT_EXIST,
-				Message: common_err.GetMsg(common_err.FILE_DOES_NOT_EXIST),
-			})
-		}
-	}
-	ctx.Response().Header().Set("Content-Type", "application/octet-stream")
-	ctx.Response().Header().Set("Content-Transfer-Encoding", "binary")
-	ctx.Response().Header().Set("Cache-Control", "no-cache")
-	// handles only single files not folders and multiple files
-	if len(list) == 1 {
-
-		filePath := list[0]
-		info, err := os.Stat(filePath)
+		info, err := os.Stat(roots[0])
 		if err != nil {
-			return ctx.JSON(http.StatusOK, model.Result{
-				Success: common_err.FILE_DOES_NOT_EXIST,
-				Message: common_err.GetMsg(common_err.FILE_DOES_NOT_EXIST),
-			})
+			return echo.NewHTTPError(400, err.Error())
 		}
 		if !info.IsDir() {
-
-			return serveDownloadFile(ctx, filePath, true)
+			return serveDownloadFile(ctx, roots[0], true)
+		}
+		if ctx.QueryParam("format") == "" || ctx.QueryParam("format") == "zip" {
+			return downloadDirectory(ctx, roots[0])
 		}
 	}
-
-	extension, ar, err := file.GetCompressionAlgorithm(t)
+	entries, err := file.CollectArchiveEntries(ctx.Request().Context(), roots, 10000)
 	if err != nil {
-		return ctx.JSON(common_err.CLIENT_ERROR, model.Result{
-			Success: common_err.INVALID_PARAMS,
-			Message: common_err.GetMsg(common_err.INVALID_PARAMS),
-		})
+		return echo.NewHTTPError(400, err.Error())
 	}
-
-	err = ar.Create(ctx.Response().Writer)
+	extension, archive, err := file.GetCompressionAlgorithm(ctx.QueryParam("format"))
 	if err != nil {
-		return ctx.JSON(common_err.SERVICE_ERROR, model.Result{
-			Success: common_err.SERVICE_ERROR,
-			Message: common_err.GetMsg(common_err.SERVICE_ERROR),
-			Data:    err.Error(),
-		})
+		return echo.NewHTTPError(400, err.Error())
 	}
-	defer ar.Close()
-	commonDir := file.CommonPrefix(filepath.Separator, list...)
-
-	currentPath := filepath.Base(commonDir)
-
-	name := "_" + currentPath
-	name += extension
-	ctx.Response().Header().Set("Content-Disposition", "attachment; filename*=utf-8''"+url.PathEscape(name))
-	for _, fname := range list {
-		err = file.AddFile(ar, fname, commonDir)
-		if err != nil {
-			log.Printf("Failed to archive %s: %v", fname, err)
-		}
+	ctx.Response().Header().Set("Content-Type", "application/octet-stream")
+	ctx.Response().Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": "CasaOS-files" + extension}))
+	ctx.Response().Header().Set("X-Content-Type-Options", "nosniff")
+	ctx.Response().Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
+	ctx.Response().Header().Set("Cache-Control", "no-store")
+	if ctx.Request().Method == http.MethodHead {
+		return ctx.NoContent(http.StatusOK)
 	}
-	return nil
+	if err := archive.Create(ctx.Response()); err != nil {
+		return err
+	}
+	if err := file.WriteArchiveEntries(ctx.Request().Context(), archive, entries); err != nil {
+		_ = archive.Close()
+		return err
+	}
+	return archive.Close()
 }
 
 func GetDownloadSingleFile(ctx echo.Context) error {
@@ -240,11 +194,8 @@ func serveDownloadFile(ctx echo.Context, filePath string, attachment bool) error
 			Message: common_err.GetMsg(common_err.INVALID_PARAMS),
 		})
 	}
-	if file.InternalStoragePath(filePath) {
-		return echo.NewHTTPError(http.StatusBadRequest, "Internal storage cannot be downloaded")
-	}
-	if err := safefs.NoLinks(filePath); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Links cannot be downloaded")
+	if _, err := file.ValidateUserPath(filePath); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 	fi, err := os.Open(filePath)
 	if err != nil {
@@ -394,10 +345,12 @@ func DirPath(ctx echo.Context) error {
 // @Router /file/rename [put]
 func RenamePath(ctx echo.Context) error {
 	json := make(map[string]string)
-	ctx.Bind(&json)
-	op := json["old_path"]
-	np := json["new_path"]
-	if len(op) == 0 || len(np) == 0 {
+	if err := ctx.Bind(&json); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid rename request")
+	}
+	op, oldErr := file.ValidateDeletePath(json["old_path"])
+	np, newErr := file.ValidateDeletePath(json["new_path"])
+	if oldErr != nil || newErr != nil {
 		return ctx.JSON(common_err.CLIENT_ERROR, model.Result{Success: common_err.INVALID_PARAMS, Message: common_err.GetMsg(common_err.INVALID_PARAMS)})
 	}
 	mounted := service.IsMounted(op)
@@ -406,7 +359,14 @@ func RenamePath(ctx echo.Context) error {
 	}
 
 	success, err := service.MyService.System().RenameFile(op, np)
-	return ctx.JSON(common_err.SUCCESS, model.Result{Success: success, Message: common_err.GetMsg(success), Data: err})
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, model.Result{Success: success, Message: err.Error()})
+	}
+	status := http.StatusOK
+	if success != common_err.SUCCESS {
+		status = http.StatusConflict
+	}
+	return ctx.JSON(status, model.Result{Success: success, Message: common_err.GetMsg(success)})
 }
 
 // @Summary create folder
@@ -419,8 +379,13 @@ func RenamePath(ctx echo.Context) error {
 // @Router /file/mkdir [post]
 func MkdirAll(ctx echo.Context) error {
 	json := make(map[string]string)
-	ctx.Bind(&json)
-	path := json["path"]
+	if err := ctx.Bind(&json); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid directory request")
+	}
+	path, pathErr := file.ValidateUserPath(json["path"])
+	if pathErr != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, pathErr.Error())
+	}
 	var code int
 	if len(path) == 0 {
 		return ctx.JSON(common_err.CLIENT_ERROR, model.Result{Success: common_err.INVALID_PARAMS, Message: common_err.GetMsg(common_err.INVALID_PARAMS)})
@@ -448,10 +413,12 @@ func MkdirAll(ctx echo.Context) error {
 // @Router /file/create [post]
 func PostCreateFile(ctx echo.Context) error {
 	json := make(map[string]string)
-	ctx.Bind(&json)
-	path := json["path"]
+	if err := ctx.Bind(&json); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid create request")
+	}
+	path, pathErr := file.ValidateUserPath(json["path"])
 	var code int
-	if len(path) == 0 {
+	if pathErr != nil {
 		return ctx.JSON(common_err.CLIENT_ERROR, model.Result{Success: common_err.INVALID_PARAMS, Message: common_err.GetMsg(common_err.INVALID_PARAMS)})
 	}
 	// decodedPath, err := url.QueryUnescape(path)
@@ -497,8 +464,11 @@ func GetFileUpload(ctx echo.Context) error {
 		if err != nil {
 			return ctx.JSON(400, model.Result{Success: 400, Message: err.Error()})
 		}
+		unlock := lockUpload(tempDir)
+		defer unlock()
 	}
 	if _, err := os.Lstat(filepath.Join(dir, fileName)); err == nil {
+		cleanupUploadChunks(tempDir)
 		return ctx.JSON(http.StatusConflict, model.Result{Success: http.StatusConflict, Message: common_err.GetMsg(common_err.FILE_ALREADY_EXISTS)})
 	} else if !os.IsNotExist(err) {
 		return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
@@ -527,7 +497,6 @@ func GetFileUpload(ctx echo.Context) error {
 // @Param file formData file true "file"
 // @Success 200 {string} string "ok"
 // @Router /file/upload [post]
-var uploadChunksMutex sync.Mutex
 
 func PostFileUpload(ctx echo.Context) error {
 	f, fileHeader, err := ctx.Request().FormFile("file")
@@ -536,6 +505,9 @@ func PostFileUpload(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, model.Result{Success: common_err.INVALID_PARAMS, Message: "File missing or invalid"})
 	}
 	defer f.Close()
+	if form := ctx.Request().MultipartForm; form != nil {
+		defer form.RemoveAll()
+	}
 
 	relative := ctx.FormValue("relativePath")
 	fileName := ctx.FormValue("filename")
@@ -553,22 +525,14 @@ func PostFileUpload(ctx echo.Context) error {
 	}
 
 	finalFilePath := filepath.Join(targetDir, fileName)
-	if _, err := os.Lstat(finalFilePath); err == nil {
-		return ctx.JSON(409, model.Result{Success: 409, Message: "A file with this name already exists"})
-	} else if !os.IsNotExist(err) {
-		return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
-	}
-
 	totalChunks, err := strconv.Atoi(utils.DefaultPostForm(ctx, "totalChunks", "0"))
 	if err != nil || totalChunks < 0 || totalChunks > 100000 {
 		return ctx.JSON(400, model.Result{Success: 400, Message: "Invalid totalChunks"})
 	}
 	chunkNumber := ctx.FormValue("chunkNumber")
-
+	tempDir, number := "", 0
 	if totalChunks > 1 {
-		uploadChunksMutex.Lock()
-		defer uploadChunksMutex.Unlock()
-		number, err := strconv.Atoi(chunkNumber)
+		number, err = strconv.Atoi(chunkNumber)
 		if err != nil || number < 1 || number > totalChunks || totalChunks > 100000 {
 			return ctx.JSON(400, model.Result{Success: 400, Message: "Invalid upload chunk"})
 		}
@@ -576,15 +540,27 @@ func PostFileUpload(ctx echo.Context) error {
 		if id == "" {
 			id = ctx.FormValue("identifier")
 		}
-		tempDir, err := uploadChunkDir(targetDir, fileName, id, totalChunks, number)
+		tempDir, err = uploadChunkDir(targetDir, fileName, id, totalChunks, number)
 		if err != nil {
 			return ctx.JSON(400, model.Result{Success: 400, Message: err.Error()})
 		}
+		unlock := lockUpload(tempDir)
+		defer unlock()
+		registerUploadDirectory(targetDir)
+	}
+	if _, err := os.Lstat(finalFilePath); err == nil {
+		cleanupUploadChunks(tempDir)
+		return ctx.JSON(409, model.Result{Success: 409, Message: "A file with this name already exists"})
+	} else if !os.IsNotExist(err) {
+		return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
+	}
+
+	if totalChunks > 1 {
 		if err := os.MkdirAll(tempDir, 0700); err != nil {
 			return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
 		}
 
-		if err := writeUploadChunk(tempDir, number, f); errors.Is(err, os.ErrExist) {
+		if err := writeUploadChunk(tempDir, number, file.ContextReader{Context: ctx.Request().Context(), Reader: f}); errors.Is(err, os.ErrExist) {
 			return ctx.JSON(409, model.Result{Success: 409, Message: err.Error()})
 		} else if err != nil {
 			return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
@@ -606,7 +582,7 @@ func PostFileUpload(ctx echo.Context) error {
 				if err != nil {
 					return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
 				}
-				_, copyErr := io.Copy(staged, part)
+				_, copyErr := io.Copy(staged, file.ContextReader{Context: ctx.Request().Context(), Reader: part})
 				closeErr := part.Close()
 				if copyErr != nil {
 					return ctx.JSON(500, model.Result{Success: 500, Message: copyErr.Error()})
@@ -623,12 +599,13 @@ func PostFileUpload(ctx echo.Context) error {
 			}
 			if err := safefs.NoReplace(staged.Name(), finalFilePath); err != nil {
 				logger.Error("error splicing chunks", zap.Error(err))
+				if os.IsExist(err) {
+					cleanupUploadChunks(tempDir)
+					return ctx.JSON(http.StatusConflict, model.Result{Success: http.StatusConflict, Message: err.Error()})
+				}
 				return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
 			}
-			// tempDir is an absolute, validated child of this upload's .temp folder.
-			if err := os.RemoveAll(tempDir); err != nil {
-				logger.Error("cleanup upload chunks", zap.Error(err))
-			}
+			cleanupUploadChunks(tempDir)
 		}
 	} else {
 		out, err := os.CreateTemp(targetDir, ".casaos-upload-*")
@@ -639,7 +616,7 @@ func PostFileUpload(ctx echo.Context) error {
 		defer out.Close()
 		defer os.Remove(out.Name())
 
-		if _, err := io.Copy(out, f); err != nil {
+		if _, err := io.Copy(out, file.ContextReader{Context: ctx.Request().Context(), Reader: f}); err != nil {
 			logger.Error("error writing uploaded file", zap.String("path", finalFilePath), zap.Error(err))
 			return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
 		}
@@ -650,67 +627,14 @@ func PostFileUpload(ctx echo.Context) error {
 			return ctx.JSON(500, model.Result{Success: 500, Message: err.Error()})
 		}
 		if err := safefs.NoReplace(out.Name(), finalFilePath); err != nil {
-			return ctx.JSON(409, model.Result{Success: 409, Message: err.Error()})
+			status := http.StatusInternalServerError
+			if os.IsExist(err) {
+				status = http.StatusConflict
+			}
+			return ctx.JSON(status, model.Result{Success: status, Message: err.Error()})
 		}
 	}
 
-	return ctx.JSON(http.StatusOK, model.Result{Success: common_err.SUCCESS, Message: common_err.GetMsg(common_err.SUCCESS)})
-}
-
-func PostFileOctet(ctx echo.Context) error {
-	content_length := ctx.Request().ContentLength
-	if content_length <= 0 || content_length > 1024*1024*1024*2*1024 {
-		log.Printf("content_length error\n")
-		return ctx.JSON(http.StatusBadRequest, model.Result{Success: common_err.CLIENT_ERROR, Message: common_err.GetMsg(common_err.CLIENT_ERROR), Data: "content_length error"})
-	}
-	content_type_, has_key := ctx.Request().Header["Content-Type"]
-	if !has_key {
-		log.Printf("Content-Type error\n")
-		return ctx.JSON(http.StatusBadRequest, model.Result{Success: common_err.CLIENT_ERROR, Message: common_err.GetMsg(common_err.CLIENT_ERROR), Data: "Content-Type error"})
-	}
-	if len(content_type_) != 1 {
-		log.Printf("Content-Type count error\n")
-		return ctx.JSON(http.StatusBadRequest, model.Result{Success: common_err.CLIENT_ERROR, Message: common_err.GetMsg(common_err.CLIENT_ERROR), Data: "Content-Type count error"})
-	}
-	content_type := content_type_[0]
-	const BOUNDARY string = "; boundary="
-	loc := strings.Index(content_type, BOUNDARY)
-	if loc == -1 {
-		log.Printf("Content-Type error, no boundary\n")
-		return ctx.JSON(http.StatusBadRequest, model.Result{Success: common_err.CLIENT_ERROR, Message: common_err.GetMsg(common_err.CLIENT_ERROR), Data: "Content-Type error, no boundary"})
-	}
-	boundary := []byte(content_type[(loc + len(BOUNDARY)):])
-	log.Printf("[%s]\n\n", boundary)
-	read_data := make([]byte, 1024*24)
-	var read_total int = 0
-	for {
-		file_header, file_data, err := file.ParseFromHead(read_data, read_total, append(boundary, []byte("\r\n")...), ctx.Request().Body)
-		if err != nil {
-			log.Printf("%v", err)
-		}
-		log.Printf("file :%s\n", file_header)
-		//
-		//os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0o644)
-		f, err := os.OpenFile(file_header["path"]+"/"+file_header["filename"], os.O_WRONLY|os.O_CREATE, 0o644)
-		if err != nil {
-			log.Printf("create file fail:%v\n", err)
-		}
-		f.Write(file_data)
-		file_data = nil
-
-		temp_data, reach_end, err := file.ReadToBoundary(boundary, ctx.Request().Body, f)
-		f.Close()
-		if err != nil {
-			log.Printf("%v\n", err)
-		}
-		if reach_end {
-			break
-		} else {
-			copy(read_data[0:], temp_data)
-			read_total = len(temp_data)
-			continue
-		}
-	}
 	return ctx.JSON(http.StatusOK, model.Result{Success: common_err.SUCCESS, Message: common_err.GetMsg(common_err.SUCCESS)})
 }
 
@@ -735,9 +659,14 @@ func PostOperateFileOrDir(ctx echo.Context) error {
 			return ctx.JSON(http.StatusBadRequest, model.Result{Success: common_err.INVALID_PARAMS, Message: err.Error()})
 		}
 		list.Item[i].From = source
+		if list.Type == "move" {
+			if _, err := file.ValidateDeletePath(source); err != nil {
+				return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+			}
+		}
 		list.Item[i].Finished = false
 		list.Item[i].ProcessedSize = 0
-		size, err := file.GetFileOrDirSize(source)
+		size, err := file.GetFileOrDirSizeContext(ctx.Request().Context(), source)
 		if err != nil {
 			return ctx.JSON(http.StatusBadRequest, model.Result{Success: common_err.INVALID_PARAMS, Message: err.Error()})
 		}
@@ -821,6 +750,9 @@ func PutFileContent(ctx echo.Context) error {
 	if bindErr != nil || fi.FilePath == "" {
 		return ctx.JSON(400, model.Result{Success: 400, Message: "Invalid file content request"})
 	}
+	if _, err := file.ValidateUserPath(fi.FilePath); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
 	if len(fi.FileContent) > 2*maxEditorFileBytes {
 		return ctx.JSON(http.StatusRequestEntityTooLarge, model.Result{Success: http.StatusRequestEntityTooLarge, Message: errEditorTooLarge.Error()})
 	}
@@ -887,7 +819,7 @@ func GetFileImage(ctx echo.Context) error {
 		if err := safefs.NoLinks(ctx.QueryParam("path")); err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "Links cannot be downloaded")
 		}
-		data, err := file.GetImage(ctx.QueryParam("path"), 100, 0)
+		data, err := file.GetImageContext(ctx.Request().Context(), ctx.QueryParam("path"), 100, 0)
 		if err != nil {
 			return ctx.JSON(common_err.SERVICE_ERROR, model.Result{Success: common_err.SERVICE_ERROR, Message: common_err.GetMsg(common_err.SERVICE_ERROR), Data: err.Error()})
 		}
@@ -914,7 +846,7 @@ func GetSize(ctx echo.Context) error {
 	json := make(map[string]string)
 	ctx.Bind(&json)
 	path := json["path"]
-	size, err := file.GetFileOrDirSize(path)
+	size, err := file.GetFileOrDirSizeContext(ctx.Request().Context(), path)
 	if err != nil {
 		return ctx.JSON(common_err.SERVICE_ERROR, model.Result{Success: common_err.SERVICE_ERROR, Message: common_err.GetMsg(common_err.SERVICE_ERROR), Data: err.Error()})
 	}
@@ -933,6 +865,7 @@ func GetFileCount(ctx echo.Context) error {
 }
 
 type CenterHandler struct {
+	mu sync.RWMutex
 	// 广播通道，有数据则循环每个用户广播出去
 	broadcast chan []byte
 	// 注册通道，有用户进来 则推到用户集合map中
@@ -948,6 +881,8 @@ type Client struct {
 	conn    *websocket.Conn
 	// 每个用户自己的循环跑起来的状态监控
 	send         chan []byte
+	done         chan struct{}
+	stopOnce     sync.Once
 	ID           string       `json:"id"`
 	IP           string       `json:"ip"`
 	Name         service.Name `json:"name"`
@@ -969,11 +904,12 @@ func ConnectWebSocket(ctx echo.Context) error {
 	key := uuid.NewString()
 	// peerModel := service.MyService.Peer().GetPeerByUserAgent(ctx.Request().UserAgent())
 	peerModel := model2.PeerDriveDBModel{}
-	name := service.GetName(request)
-	if conn, err = upgraderFile.Upgrade(writer, request, writer.Header()); err != nil {
-		log.Println(err)
+	conn, err := upgraderFile.Upgrade(writer, request, writer.Header())
+	if err != nil {
+		return err
 	}
-	client := &Client{handler: &handler, conn: conn, send: make(chan []byte, 256), ID: service.GetPeerId(request, key), IP: service.GetIP(request), Name: name, RtcSupported: true, TimerId: 0, LastBeat: time.Now()}
+	name := service.GetName(request)
+	client := &Client{handler: &handler, conn: conn, send: make(chan []byte, 256), done: make(chan struct{}), ID: service.GetPeerId(request, key), IP: service.GetIP(request), Name: name, RtcSupported: true, TimerId: 0, LastBeat: time.Now()}
 	if peerId != "" || len(peerModel.ID) > 0 {
 		if len(peerModel.ID) == 0 {
 			peerModel = service.MyService.Peer().GetPeerByID(peerId)
@@ -1008,7 +944,7 @@ func ConnectWebSocket(ctx echo.Context) error {
 		kickoutList := []Client{}
 		count := len(list) - 10
 		for i := len(list) - 1; count > 0 && i > -1; i-- {
-			if _, ok := handler.clients[list[i].ID]; !ok {
+			if handler.lookup(list[i].ID) == nil {
 				count--
 				kickoutList = append(kickoutList, Client{ID: list[i].ID, Name: service.GetNameByDB(list[i]), IP: list[i].IP})
 				service.MyService.Peer().DeletePeer(list[i].ID)
@@ -1018,43 +954,37 @@ func ConnectWebSocket(ctx echo.Context) error {
 		// 	other := make(map[string]interface{})
 		// 	other["type"] = "kickout"
 		// 	other["peers"] = kickoutList
-		// 	otherBy, err := json.Marshal(other)
+		// 	otherBy, _ := json.Marshal(other)
 		// 	fmt.Println(err)
 		// 	client.handler.broadcast <- otherBy
 		// }
 	}
 	list = service.MyService.Peer().GetPeers()
 	if len(list) > 10 {
-		fmt.Println("解决完后依然有溢出", list)
+
 	}
 	currentPeer := PeerModel{ID: client.ID, Name: client.Name, RtcSupported: client.RtcSupported}
 	pmsg := make(map[string]interface{})
 	pmsg["type"] = "peer-joined"
 	pmsg["peer"] = currentPeer
-	pby, err := json.Marshal(pmsg)
-	fmt.Println(err)
-	for _, v := range handler.clients {
-		v.send <- pby
+	pby, _ := json.Marshal(pmsg)
+
+	for _, v := range handler.snapshot() {
+		v.enqueue(pby)
 	}
 	// client.handler.broadcast <- pby
 	clients := []PeerModel{}
-	for _, v := range client.handler.clients {
-		if _, ok := handler.clients[v.ID]; ok {
-			clients = append(clients, PeerModel{ID: v.ID, Name: v.Name, RtcSupported: v.RtcSupported})
-		}
+	for _, v := range client.handler.snapshot() {
+		clients = append(clients, PeerModel{ID: v.ID, Name: v.Name, RtcSupported: v.RtcSupported})
 	}
 
 	other := make(map[string]interface{})
 	other["type"] = "peers"
 	other["peers"] = clients
 	otherBy, err := json.Marshal(other)
-	fmt.Println(err)
-	client.send <- otherBy
 
-	// 推给监控中心注册到用户集合中
-	handler.register <- client
-
-	client.send <- []byte(`{"type":"ping"}`)
+	client.enqueue(otherBy)
+	client.enqueue([]byte(`{"type":"ping"}`))
 
 	data := make(map[string]string)
 	data["displayName"] = client.Name.DisplayName
@@ -1064,12 +994,46 @@ func ConnectWebSocket(ctx echo.Context) error {
 	msg["type"] = "display-name"
 	msg["message"] = data
 	by, _ := json.Marshal(msg)
-	client.send <- by
+	client.enqueue(by)
+	handler.register <- client
 
 	// 每个 client 都挂起 2 个新的协程，监控读、写状态
 	go client.writePump()
 	go client.readPump()
-	return ctx.JSON(common_err.SUCCESS, model.Result{Success: common_err.SUCCESS, Message: common_err.GetMsg(common_err.SUCCESS)})
+	return nil
+}
+
+func (ch *CenterHandler) lookup(id string) *Client {
+	ch.mu.RLock()
+	defer ch.mu.RUnlock()
+	return ch.clients[id]
+}
+
+func (ch *CenterHandler) snapshot() []*Client {
+	ch.mu.RLock()
+	defer ch.mu.RUnlock()
+	clients := make([]*Client, 0, len(ch.clients))
+	for _, client := range ch.clients {
+		clients = append(clients, client)
+	}
+	return clients
+}
+
+func (c *Client) stop() {
+	c.stopOnce.Do(func() {
+		close(c.done)
+		c.conn.Close()
+	})
+}
+
+// A stalled peer must not block registration, broadcasts or other peers.
+func (c *Client) enqueue(message []byte) {
+	select {
+	case <-c.done:
+	case c.send <- message:
+	default:
+		c.stop()
+	}
 }
 
 var handler = CenterHandler{
@@ -1099,14 +1063,19 @@ func init() {
 
 func (c *Client) writePump() {
 	defer func() {
+		c.stop()
 		c.handler.unregister <- c
-
-		c.conn.Close()
 	}()
 	for {
 		// 广播推过来的新消息，马上通过websocket推给自己
-		message, _ := <-c.send
-		fmt.Println("推送消息", string(message), "1")
+		var message []byte
+		select {
+		case <-c.done:
+			return
+		case message = <-c.send:
+		}
+		c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+
 		if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
 			return
 		}
@@ -1115,9 +1084,10 @@ func (c *Client) writePump() {
 
 // 读，监听客户端是否有推送内容过来服务端
 func (c *Client) readPump() {
+	c.conn.SetReadLimit(64 << 10)
 	defer func() {
+		c.stop()
 		c.handler.unregister <- c
-		c.conn.Close()
 	}()
 	for {
 		// 循环监听是否该用户是否要发言
@@ -1127,7 +1097,8 @@ func (c *Client) readPump() {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
 			}
-			c.handler.broadcast <- []byte(`{"type":"peer-left","peerId":"` + c.ID + `"}`)
+			message, _ := json.Marshal(map[string]string{"type": "peer-left", "peerId": c.ID})
+			c.handler.broadcast <- message
 			break
 		}
 		// 要的话，推给广播中心，广播中心再推给每个用户
@@ -1150,7 +1121,8 @@ func (c *Client) readPump() {
 			// other["peers"] = clients
 			// otherBy, err := json.Marshal(other)
 			// fmt.Println(err)
-			c.handler.broadcast <- []byte(`{"type":"peer-left","peerId":"` + c.ID + `"}`)
+			message, _ := json.Marshal(map[string]string{"type": "peer-left", "peerId": c.ID})
+			c.handler.broadcast <- message
 			// c.handler.broadcast <- otherBy
 			break
 		} else if t.String() == "pong" {
@@ -1160,7 +1132,7 @@ func (c *Client) readPump() {
 		to := gjson.GetBytes(message, "to")
 
 		if len(to.String()) > 0 {
-			toC := c.handler.clients[to.String()]
+			toC := c.handler.lookup(to.String())
 			if toC == nil {
 				continue
 			}
@@ -1169,7 +1141,7 @@ func (c *Client) readPump() {
 			data["sender"] = c.ID
 			delete(data, "to")
 			message, err = json.Marshal(data)
-			toC.send <- message
+			toC.enqueue(message)
 			continue
 		}
 
@@ -1182,16 +1154,27 @@ func (ch *CenterHandler) monitoring() {
 		select {
 		// 注册，新用户连接过来会推进注册通道，这里接收推进来的用户指针
 		case client := <-ch.register:
+			ch.mu.Lock()
+			previous := ch.clients[client.ID]
 			ch.clients[client.ID] = client
+			ch.mu.Unlock()
+			if previous != nil && previous != client {
+				previous.stop()
+			}
 			// 注销，关闭连接或连接异常会将用户推出群聊
 		case client := <-ch.unregister:
-			delete(ch.clients, client.ID)
+			ch.mu.Lock()
+			if ch.clients[client.ID] == client {
+				delete(ch.clients, client.ID)
+			}
+			ch.mu.Unlock()
+			client.stop()
 			// 消息，监听到有新消息到来
 		case message := <-ch.broadcast:
-			println("消息来了，message：" + string(message))
+
 			// 推送给每个用户的通道，每个用户都有跑协程起了writePump的监听
-			for _, client := range ch.clients {
-				client.send <- message
+			for _, client := range ch.snapshot() {
+				client.enqueue(message)
 			}
 		}
 	}
@@ -1200,7 +1183,7 @@ func (ch *CenterHandler) monitoring() {
 func GetPeers(ctx echo.Context) error {
 	peers := service.MyService.Peer().GetPeers()
 	for i := 0; i < len(peers); i++ {
-		if _, ok := handler.clients[peers[i].ID]; ok {
+		if handler.lookup(peers[i].ID) != nil {
 			peers[i].Online = true
 		}
 	}

@@ -355,7 +355,7 @@ func TestSettingsAndTimelineUseSharedPathsAndMediaTypes(t *testing.T) {
 	old := config.AppInfo.UserDataPath
 	config.AppInfo.UserDataPath = filepath.Join(root, "config")
 	t.Cleanup(func() { config.AppInfo.UserDataPath = old })
-	s := StorageSettings{true, filepath.Join(root, "apps"), filepath.Join(root, "archives"), filepath.Join(root, "photos"), filepath.Join(root, "videos"), filepath.Join(root, "docs"), filepath.Join(root, "music"), filepath.Join(root, "mobile"), filepath.Join(root, "data")}
+	s := StorageSettings{SmartAutoSort: true, AppsPath: filepath.Join(root, "apps"), ArchivesPath: filepath.Join(root, "archives"), PhotosPath: filepath.Join(root, "photos"), VideosPath: filepath.Join(root, "videos"), DocumentsPath: filepath.Join(root, "docs"), MusicPath: filepath.Join(root, "music"), MobilePath: filepath.Join(root, "mobile"), DefaultPath: filepath.Join(root, "data")}
 	response := apiRequest(t, handleStorageSettings, "PUT", "/api/settings", s)
 	if response.Code != 200 {
 		t.Fatal(response.Code, response.Body.String())

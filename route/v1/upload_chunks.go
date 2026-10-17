@@ -9,8 +9,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/IceWhaleTech/CasaOS-Common/utils/logger"
 	"github.com/IceWhaleTech/CasaOS/internal/safefs"
 	"github.com/IceWhaleTech/CasaOS/pkg/config"
+	"github.com/IceWhaleTech/CasaOS/pkg/utils/file"
+	"go.uber.org/zap"
 )
 
 func uploadTargetDir(rawPath, fileName, relative string) (string, error) {
@@ -19,6 +22,9 @@ func uploadTargetDir(rawPath, fileName, relative string) (string, error) {
 	}
 	if rawPath == "/DATA" || strings.HasPrefix(rawPath, "/DATA/") {
 		rawPath = filepath.Join(config.DefaultStorageRoot(), strings.TrimLeft(strings.TrimPrefix(rawPath, "/DATA"), "/\\"))
+	}
+	if !filepath.IsAbs(rawPath) {
+		return "", fmt.Errorf("upload path must be absolute")
 	}
 	abs, err := filepath.Abs(rawPath)
 	if err != nil || fileName == "" || filepath.Base(fileName) != fileName || strings.ContainsAny(fileName, `\/:`) {
@@ -32,6 +38,9 @@ func uploadTargetDir(rawPath, fileName, relative string) (string, error) {
 		return "", fmt.Errorf("invalid relative upload path")
 	}
 	dir := filepath.Join(abs, filepath.Dir(relative))
+	if _, err := file.ValidateUserPath(filepath.Join(dir, fileName)); err != nil {
+		return "", err
+	}
 	return dir, safefs.NoLinks(dir)
 }
 
@@ -45,6 +54,22 @@ func uploadChunkDir(dir, name, id string, total, number int) (string, error) {
 	key := sha256.Sum256([]byte(name + "\x00" + strconv.Itoa(total) + "\x00" + id))
 	target := filepath.Join(dir, ".temp", fmt.Sprintf("%x", key))
 	return target, safefs.NoLinks(target)
+}
+
+func cleanupUploadChunks(dir string) {
+	if dir == "" {
+		return
+	}
+	// Only a resolved upload-specific child of .temp may be recursively removed.
+	if !filepath.IsAbs(dir) || filepath.Base(filepath.Dir(dir)) != ".temp" || len(filepath.Base(dir)) != 64 {
+		return
+	}
+	if err := safefs.NoLinks(dir); err != nil {
+		return
+	}
+	if err := os.RemoveAll(dir); err != nil {
+		logger.Error("cleanup upload chunks", zap.Error(err))
+	}
 }
 
 // Retries are idempotent, but cannot replace a complete part with different bytes.

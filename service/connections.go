@@ -11,8 +11,10 @@
 package service
 
 import (
+	"github.com/IceWhaleTech/CasaOS-Common/utils/logger"
 	"github.com/IceWhaleTech/CasaOS/service/model"
 	model2 "github.com/IceWhaleTech/CasaOS/service/model"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -37,7 +39,7 @@ func (s *connectionsStruct) GetConnectionByHost(host string) (connections []mode
 }
 
 func (s *connectionsStruct) GetConnectionByID(id string) (connections model2.ConnectionsDBModel) {
-	s.db.Select("username,password,host,status,id,directories,mount_point,port").Where("id = ?", id).First(&connections)
+	s.db.Select("username,host,status,id,directories,mount_point,port").Where("id = ?", id).First(&connections)
 	return
 }
 
@@ -47,10 +49,13 @@ func (s *connectionsStruct) GetConnectionsList() (connections []model2.Connectio
 }
 
 func (s *connectionsStruct) CreateConnection(connection *model2.ConnectionsDBModel) {
+	// Credentials are needed only for the live mount, never for listing/removal.
+	connection.Password = ""
 	s.db.Create(connection)
 }
 
 func (s *connectionsStruct) UpdateConnection(connection *model2.ConnectionsDBModel) {
+	connection.Password = ""
 	s.db.Save(connection)
 }
 
@@ -59,5 +64,10 @@ func (s *connectionsStruct) DeleteConnection(id string) {
 }
 
 func NewConnectionsService(db *gorm.DB) ConnectionsService {
+	if db != nil && db.Migrator().HasTable(&model2.ConnectionsDBModel{}) {
+		if err := db.Model(&model2.ConnectionsDBModel{}).Where("password <> ?", "").Update("password", "").Error; err != nil {
+			logger.Error("remove obsolete SMB credentials", zap.Error(err))
+		}
+	}
 	return &connectionsStruct{db: db}
 }

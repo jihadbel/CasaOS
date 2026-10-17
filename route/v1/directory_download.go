@@ -2,8 +2,8 @@ package v1
 
 import (
 	"archive/zip"
+	"context"
 	"fmt"
-	"io"
 	"mime"
 	"net/http"
 	"os"
@@ -19,16 +19,17 @@ func downloadDirectory(ctx echo.Context, root string) error {
 	if err != nil {
 		return echo.NewHTTPError(400, "Invalid folder path")
 	}
+	if filepath.Dir(root) == root {
+		return echo.NewHTTPError(400, "Filesystem roots cannot be downloaded")
+	}
 	type entry struct {
 		path, name string
 		info       os.FileInfo
 	}
 	var entries []entry
+	var totalBytes int64
 	base := file.ArchiveBase(root)
-	err = filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
+	err = walkDownloadTree(ctx.Request().Context(), root, 10000, func(path string, info os.FileInfo) error {
 		if err := ctx.Request().Context().Err(); err != nil {
 			return err
 		}
@@ -48,6 +49,12 @@ func downloadDirectory(ctx echo.Context, root string) error {
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
+		}
+		if !info.IsDir() {
+			if info.Size() < 0 || info.Size() > file.MaxArchiveBytes-totalBytes {
+				return fmt.Errorf("folder exceeds archive byte limit")
+			}
+			totalBytes += info.Size()
 		}
 		entries = append(entries, entry{path, filepath.ToSlash(filepath.Join(base, rel)), info})
 		return nil
@@ -96,7 +103,7 @@ func downloadDirectory(ctx echo.Context, root string) error {
 		if err != nil {
 			return err
 		}
-		_, copyErr := io.Copy(writer, input)
+		copyErr := file.CopyArchiveFile(ctx.Request().Context(), writer, input, entry.info.Size())
 		closeErr := input.Close()
 		if copyErr != nil {
 			return copyErr
@@ -106,4 +113,9 @@ func downloadDirectory(ctx echo.Context, root string) error {
 		}
 	}
 	return archive.Close()
+}
+
+// ReadDir in batches also bounds memory for a single enormous directory.
+func walkDownloadTree(ctx context.Context, root string, limit int, visit func(string, os.FileInfo) error) error {
+	return file.WalkTree(ctx, root, limit, visit)
 }

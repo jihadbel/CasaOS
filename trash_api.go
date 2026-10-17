@@ -15,6 +15,7 @@ import (
 
 	"github.com/IceWhaleTech/CasaOS/internal/safefs"
 	"github.com/IceWhaleTech/CasaOS/pkg/config"
+	fileutil "github.com/IceWhaleTech/CasaOS/pkg/utils/file"
 	"github.com/google/uuid"
 )
 
@@ -154,7 +155,7 @@ func handleTrash(w http.ResponseWriter, r *http.Request) {
 			apiError(w, 400, errors.New("an absolute source path is required"))
 			return
 		}
-		source, err := filepath.Abs(body.Path)
+		source, err := fileutil.ValidateDeletePath(body.Path)
 		if err != nil {
 			apiError(w, 400, err)
 			return
@@ -265,7 +266,7 @@ func handleTrash(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Only remove indexed, validated items; never sweep unknown recovery content.
-		for _, item := range items {
+		for i, item := range items {
 			if err := validateTrashItem(item); err != nil {
 				apiError(w, 400, err)
 				return
@@ -274,10 +275,11 @@ func handleTrash(w http.ResponseWriter, r *http.Request) {
 				apiError(w, 500, err)
 				return
 			}
-		}
-		if err := saveTrashManifest([]TrashItem{}); err != nil {
-			apiError(w, 500, err)
-			return
+			// Persist each completed removal before attempting the next item.
+			if err := saveTrashManifest(items[i+1:]); err != nil {
+				apiError(w, 500, err)
+				return
+			}
 		}
 		apiJSON(w, 200, map[string]bool{"success": true})
 	default:

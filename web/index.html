@@ -4105,7 +4105,7 @@
             currentShareItem = { path: path, name: title.innerText, size: 0 };
             counter.style.display = 'none';
 
-            body.innerHTML = `<video controls autoplay><source src="${url}" type="video/mp4">المتصفح لا يدعم تشغيل هذا الفيديو</video>`;
+            body.innerHTML = `<video controls autoplay src="${url}">المتصفح لا يدعم تشغيل هذا الفيديو</video>`;
             modal.classList.add('active');
         }
 
@@ -4494,7 +4494,7 @@
                     loadCurrentFolder();
                     loadTrash();
                 } else {
-                    alert('فصل النقل إلى سلة المحذوفات: ' + (data.error || ''));
+                    alert('فشل النقل إلى سلة المحذوفات: ' + (data.error || ''));
                 }
             } catch (err) {
                 alert('خطأ أثناء النقل إلى سلة المحذوفات');
@@ -4745,7 +4745,12 @@
         async function submitCreateFolder() {
             const name = document.getElementById('folderNameInput').value.trim();
             if (!name) return;
-            const newPath = currentPath.endsWith('/') || currentPath.endsWith('\\') ? currentPath + name : currentPath + '/' + name;
+            if (name === '.' || name === '..' || /[\\/:]/.test(name)) {
+                alert('اسم المجلد غير صالح');
+                return;
+            }
+            const basePath = currentPath === '/' || currentPath === '/drives' || !currentPath ? appSettings.defaultPath || '/DATA' : currentPath;
+            const newPath = /[/\\]$/.test(basePath) ? basePath + name : basePath + '/' + name;
             try {
                 const res = await fetch('/v1/folder', {
                     method: 'POST',

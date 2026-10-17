@@ -46,19 +46,25 @@ type RemotesResult struct {
 var UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36"
 var DefaultTimeout = time.Second * 30
 
+// Reuse the local TCP pool across short-lived Resty clients.
+var rcloneTCPTransport = &http.Transport{
+	DialContext:     (&net.Dialer{Timeout: time.Second, KeepAlive: 30 * time.Second}).DialContext,
+	IdleConnTimeout: 90 * time.Second,
+}
+
 func NewRestyClient() *resty.Client {
 	client := resty.New()
-	client.SetRetryCount(3).SetRetryWaitTime(5*time.Second).SetTimeout(DefaultTimeout).SetHeader("User-Agent", UserAgent)
+	client.SetTimeout(DefaultTimeout).SetHeader("User-Agent", UserAgent)
 
 	if runtime.GOOS == "windows" {
-		client.SetBaseURL("http://127.0.0.1:5572")
+		client.SetTransport(rcloneTCPTransport).SetBaseURL("http://127.0.0.1:5572")
 		return client
 	}
 
 	unixSocket := "/var/run/rclone/rclone.sock"
 	transport := http.Transport{
 		Dial: func(_, _ string) (net.Conn, error) {
-			return net.Dial("unix", unixSocket)
+			return net.DialTimeout("unix", unixSocket, time.Second)
 		},
 	}
 

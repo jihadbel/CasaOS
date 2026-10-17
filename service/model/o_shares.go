@@ -13,6 +13,7 @@ package model
 type SharesDBModel struct {
 	ID        uint   `gorm:"column:id;primary_key" json:"id"`
 	Anonymous bool   `json:"anonymous"`
+	ReadOnly  bool   `json:"readOnly"`
 	Path      string `json:"path"`
 	Name      string `json:"name"`
 	Updated   int64  `gorm:"autoUpdateTime"`

@@ -27,7 +27,7 @@ func (r copyReader) Read(p []byte) (int, error) {
 
 // ValidateCopyTarget rejects aliases and overlapping trees before any mutation.
 func ValidateCopyTarget(source, parent string) (string, string, error) {
-	if source == "" || parent == "" {
+	if !filepath.IsAbs(source) || !filepath.IsAbs(parent) {
 		return "", "", errors.New("source and destination are required")
 	}
 	source, err := filepath.Abs(source)
@@ -42,6 +42,12 @@ func ValidateCopyTarget(source, parent string) (string, string, error) {
 		return "", "", errors.New("cannot operate on a filesystem root")
 	}
 	target := filepath.Join(parent, filepath.Base(source))
+	if _, err := ValidateUserPath(source); err != nil {
+		return "", "", err
+	}
+	if _, err := ValidateUserPath(target); err != nil {
+		return "", "", err
+	}
 	if err := safefs.NoLinks(source); err != nil {
 		return "", "", err
 	}
@@ -137,10 +143,18 @@ func CopyDirContext(ctx context.Context, source, parent, style string) error {
 	if err != nil {
 		return err
 	}
-	return copyTree(ctx, source, target, style)
+	return copyTree(ctx, source, target, style, false)
 }
 
-func copyTree(ctx context.Context, source, target, style string) error {
+func copyTree(ctx context.Context, source, target, style string, staged bool) error {
+	if InternalStoragePath(source) {
+		return errors.New("internal storage cannot be copied")
+	}
+	if !staged {
+		if _, err := ValidateUserPath(target); err != nil {
+			return err
+		}
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -168,7 +182,7 @@ func copyTree(ctx context.Context, source, target, style string) error {
 		return err
 	}
 	for _, entry := range entries {
-		if err := copyTree(ctx, filepath.Join(source, entry.Name()), filepath.Join(target, entry.Name()), style); err != nil {
+		if err := copyTree(ctx, filepath.Join(source, entry.Name()), filepath.Join(target, entry.Name()), style, staged); err != nil {
 			return err
 		}
 	}
@@ -178,8 +192,14 @@ func copyTree(ctx context.Context, source, target, style string) error {
 // MovePathContext renames directly when the destination is absent. Replacements
 // and cross-volume moves stage a full copy before removing any existing data.
 func MovePathContext(ctx context.Context, source, parent, style string) error {
+	if _, err := ValidateDeletePath(source); err != nil {
+		return err
+	}
 	source, target, err := ValidateCopyTarget(source, parent)
 	if err != nil {
+		return err
+	}
+	if _, err := ValidateDeletePath(target); err != nil {
 		return err
 	}
 	if err := ctx.Err(); err != nil {
@@ -216,7 +236,7 @@ func MovePathContext(ctx context.Context, source, parent, style string) error {
 		}
 	}()
 	staged := filepath.Join(stage, "new")
-	if err := copyTree(ctx, source, staged, "overwrite"); err != nil {
+	if err := copyTree(ctx, source, staged, "overwrite", true); err != nil {
 		return err
 	}
 	if err := ctx.Err(); err != nil {
@@ -256,6 +276,9 @@ func MovePathContext(ctx context.Context, source, parent, style string) error {
 
 func validateMoveTree(ctx context.Context, source string) error {
 	return filepath.WalkDir(source, func(path string, entry os.DirEntry, err error) error {
+		if InternalStoragePath(path) {
+			return errors.New("internal storage cannot be moved")
+		}
 		if err != nil {
 			return err
 		}

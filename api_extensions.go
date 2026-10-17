@@ -74,7 +74,18 @@ func handleMediaTimeline(w http.ResponseWriter, r *http.Request) {
 
 	customFolder := r.URL.Query().Get("folder")
 	if customFolder != "" {
-		scanDirs = []string{customFolder}
+		clean, err := file.ValidateStoragePath(customFolder)
+		if err != nil {
+			apiError(w, http.StatusBadRequest, err)
+			return
+		}
+		scanDirs = []string{clean}
+	}
+	for _, dir := range scanDirs {
+		if _, err := file.ValidateStoragePath(dir); err != nil {
+			apiError(w, http.StatusBadRequest, err)
+			return
+		}
 	}
 
 	filterType := r.URL.Query().Get("type") // "all", "photos", "videos"

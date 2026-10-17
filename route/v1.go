@@ -28,18 +28,14 @@ func InitV1Router() http.Handler {
 	})))
 	e.Use(echo_middleware.Gzip())
 	e.Use(echo_middleware.Recover())
-	e.Use(echo_middleware.Logger())
+	e.Use(echo_middleware.LoggerWithConfig(echo_middleware.LoggerConfig{Format: "${method} ${path} ${status}\n"}))
 
-	e.GET("/v1/sys/debug", v1.GetSystemConfigDebug) // //debug
-
-	e.GET("/v1/sys/version/check", v1.GetSystemCheckVersion)
 	e.GET("/v1/sys/version/current", func(ctx echo.Context) error {
 		return ctx.String(200, common.VERSION)
 	})
 	e.GET("/ping", func(ctx echo.Context) error {
 		return ctx.String(200, "pong")
 	})
-	e.GET("/v1/recover/:type", v1.GetRecoverStorage)
 	v1Group := e.Group("/v1")
 	//	e.Any("/v1/test", v1.CheckNetwork)
 	v1Group.Use(echo_middleware.JWTWithConfig(echo_middleware.JWTConfig{
@@ -65,6 +61,9 @@ func InitV1Router() http.Handler {
 			},
 		},
 	}))
+	v1Group.GET("/sys/debug", v1.GetSystemConfigDebug)
+	v1Group.GET("/sys/version/check", v1.GetSystemCheckVersion)
+	v1Group.GET("/recover/:type", v1.GetRecoverStorage)
 	{
 
 		v1SysGroup := v1Group.Group("/sys")
@@ -92,8 +91,6 @@ func InitV1Router() http.Handler {
 			// v1SysGroup.GET("/disk", v1.GetSystemDiskInfo)
 			// v1SysGroup.GET("/network", v1.GetSystemNetInfo)
 
-			v1SysGroup.GET("/server-info", nil)
-			v1SysGroup.PUT("/server-info", nil)
 			// v1SysGroup.GET("/port", v1.GetCasaOSPort)
 			// v1SysGroup.PUT("/port", v1.PutCasaOSPort)
 			v1SysGroup.GET("/proxy", v1.GetSystemProxy)

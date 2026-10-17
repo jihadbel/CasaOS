@@ -15,6 +15,7 @@ import (
 
 func TestTimelinePaginationIsOrderedBoundedAndDisjoint(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("CASAOS_DATA_ROOT", root)
 	old := config.AppInfo.UserDataPath
 	config.AppInfo.UserDataPath = filepath.Join(root, "conf")
 	t.Cleanup(func() { config.AppInfo.UserDataPath = old })
@@ -92,6 +93,7 @@ func TestTimelineTraversalCapsMediaEntriesAndCancellation(t *testing.T) {
 
 func TestTimelineAPIReportsPartialResultsAtMediaCap(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("CASAOS_DATA_ROOT", root)
 	old := config.AppInfo.UserDataPath
 	config.AppInfo.UserDataPath = filepath.Join(root, "conf")
 	t.Cleanup(func() { config.AppInfo.UserDataPath = old })
@@ -114,5 +116,19 @@ func TestTimelineAPIReportsPartialResultsAtMediaCap(t *testing.T) {
 	}
 	if data.Total > maxTimelineItems || !data.Truncated || !data.HasMore || count != 100 {
 		t.Fatal(data.Total, data.Truncated, data.HasMore, count)
+	}
+}
+
+func TestTimelineRejectsFoldersOutsideConfiguredStorage(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("CASAOS_DATA_ROOT", filepath.Join(root, "data"))
+	previous := config.AppInfo.UserDataPath
+	config.AppInfo.UserDataPath = filepath.Join(root, "conf")
+	t.Cleanup(func() { config.AppInfo.UserDataPath = previous })
+	for _, folder := range []string{root, filepath.Join(root, "data-other"), config.AppInfo.UserDataPath, "relative", filepath.Join(root, "data", ".temp")} {
+		w := apiRequest(t, handleMediaTimeline, "GET", "/api/media/timeline?folder="+url.QueryEscape(folder), nil)
+		if w.Code != 400 {
+			t.Fatal(folder, w.Code, w.Body.String())
+		}
 	}
 }

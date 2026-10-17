@@ -55,3 +55,14 @@ func TestExtensionsRequireIdentityOnEveryPlatform(t *testing.T) {
 		t.Fatal("non-extension routing changed")
 	}
 }
+
+func TestLegacyDebugVersionAndRecoveryRequireAuthentication(t *testing.T) {
+	handler := InitV1Router()
+	for _, path := range []string{"/v1/sys/debug", "/v1/sys/version/check", "/v1/recover/GoogleDrive", "/v1/sys/server-info"} {
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, httptest.NewRequest("GET", path, nil))
+		if w.Code != http.StatusUnauthorized && w.Code != http.StatusNotFound {
+			t.Fatal(path, w.Code, w.Body.String())
+		}
+	}
+}

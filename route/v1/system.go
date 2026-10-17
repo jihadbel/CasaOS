@@ -1,19 +1,14 @@
 package v1
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
-	"os"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
-	http2 "github.com/IceWhaleTech/CasaOS-Common/utils/http"
 	"github.com/IceWhaleTech/CasaOS-Common/utils/port"
 	"github.com/IceWhaleTech/CasaOS/common"
 	"github.com/IceWhaleTech/CasaOS/model"
@@ -164,17 +159,9 @@ func PutCasaOSPort(ctx echo.Context) error {
 // @Success 200 {string} string "ok"
 // @Router /sys/restart [post]
 func PostKillCasaOS(ctx echo.Context) error {
-	os.Exit(0)
-	return nil
+	return echo.NewHTTPError(http.StatusGone, "Remote process termination is disabled")
 }
 
-// @Summary get system hardware info
-// @Produce  application/json
-// @Accept application/json
-// @Tags sys
-// @Security ApiKeyAuth
-// @Success 200 {string} string "ok"
-// @Router /sys/hardware/info [get]
 func GetSystemHardwareInfo(ctx echo.Context) error {
 	data := make(map[string]string, 1)
 	data["drive_model"] = service.MyService.System().GetDeviceTree()
@@ -337,42 +324,13 @@ func GetSystemNetInfo(ctx echo.Context) error {
 }
 
 func GetSystemProxy(ctx echo.Context) error {
-	url := ctx.QueryParam("url")
-	resp, err := http2.Get(url, 30*time.Second)
-	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, model.Result{Success: common_err.SERVICE_ERROR, Message: err.Error()})
-	}
-	defer resp.Body.Close()
-	for k, v := range ctx.Request().Header {
-		ctx.Request().Header.Add(k, v[0])
-	}
-	rda, _ := ioutil.ReadAll(resp.Body)
-	//	json.NewEncoder(c.Writer).Encode(json.RawMessage(string(rda)))
-	// 响应状态码
-	ctx.Response().Writer.WriteHeader(resp.StatusCode)
-	// 复制转发的响应Body到响应Body
-	io.Copy(ctx.Response().Writer, ioutil.NopCloser(bytes.NewBuffer(rda)))
-	return nil
+	return echo.NewHTTPError(http.StatusGone, "The legacy URL proxy is disabled")
 }
 
 func PutSystemState(ctx echo.Context) error {
-	state := ctx.Param("state")
-	if strings.ToLower(state) == "off" {
-		service.MyService.System().SystemShutdown()
-	} else if strings.ToLower(state) == "restart" {
-		service.MyService.System().SystemReboot()
-	}
-	return ctx.JSON(http.StatusOK, model.Result{Success: common_err.SUCCESS, Message: common_err.GetMsg(common_err.SUCCESS), Data: "The operation will be completed shortly."})
+	return echo.NewHTTPError(http.StatusGone, "Remote host power control is disabled")
 }
 
-// @Summary 获取一个可用端口
-// @Produce  application/json
-// @Accept application/json
-// @Tags app
-// @Param  type query string true "端口类型 udp/tcp"
-// @Security ApiKeyAuth
-// @Success 200 {string} string "ok"
-// @Router /app/getport [get]
 func GetPort(ctx echo.Context) error {
 	t := utils.DefaultQuery(ctx, "type", "tcp")
 	var p int
