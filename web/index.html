@@ -3080,7 +3080,9 @@
  function clearPrivateView(){
   ++accountEpoch;++folderRequestID;++timelineRequestID;timelineAbortController?.abort();resetTimelineVideoPreviews();
   for(const xhr of activeUploads)xhr.abort?.();activeUploads.clear();
-  audioPlayer.pause();audioPlayer.src='';audioPlaylist=[];currentAudioIndex=-1;mediaPlaylist=[];allItems=[];filteredItems=[];trashedItemsList=[];
+  closeAudioPlayer();audioPlayer.src='';audioPlaylist=[];currentAudioIndex=-1;mediaPlaylist=[];allItems=[];filteredItems=[];trashedItemsList=[];
+  for(const id of ['audioTrackTitle','audioTrackSub','audioCurrentTime','audioDuration'])document.getElementById(id).textContent='';
+  document.getElementById('audioSeekBar').value=0;currentShareItem={path:'',name:'',size:0};
   closeLightbox();closeCodeModal();closePdfModal();closeSettingsModal();closeUsersModal();closeShareModal();closePhoneModal();
   document.getElementById('codeTextarea').value='';document.getElementById('newAdminPassword').value='';document.getElementById('newUserPassword').value='';document.getElementById('usersList').replaceChildren();document.getElementById('shareUrlInput').value='';document.getElementById('shareQrImg').removeAttribute('src');
   for(const id of ['viewContainer','timelineContainer','trashTableBody'])document.getElementById(id).replaceChildren();
@@ -4222,6 +4224,7 @@
         // Floating Mini Background Audio Player Engine
         // =========================================================================
         function playAudioTrack(path, name, index = -1, preservePlaylist = false) {
+            const epoch = accountEpoch;
             if (!preservePlaylist) {
               audioPlaylist = filteredItems.filter(i => !i.is_dir && isMusic(i.name)).map(i => ({
                 path: i.path || (currentPath.endsWith('/') || currentPath.endsWith('\\') ? currentPath + i.name : currentPath + '/' + i.name),
@@ -4242,6 +4245,7 @@
 
             audioPlayer.src = url;
             audioPlayer.play().then(() => {
+                if (epoch !== accountEpoch) return;
                 isAudioPlaying = true;
                 updateAudioPlayerUI();
             }).catch(e => console.log('Autoplay handled', e));
@@ -4754,7 +4758,7 @@
                     btn.innerHTML = '<span>تم الحفظ ✓</span>';
                     setTimeout(() => { if (requestID === codeRequestID) btn.innerHTML = originalText; }, 1500);
                 } else {
-                    alert('فشل حفظ التعديلات: ' + (json.message || ''));
+                    alert('فشل حفظ التعديلات: ' + (json.message || json.error || ''));
                     btn.innerHTML = originalText;
                 }
             } catch (err) {

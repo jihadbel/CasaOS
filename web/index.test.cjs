@@ -9,9 +9,15 @@ const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 function fixture(fetchImpl = null) {
   const elements = new Map(), alerts = [];
   function element() {
+    const classes = new Set(); let text = '';
     return {
-      style: {}, dataset: {}, classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
-      innerHTML: '', innerText: '', textContent: '', value: '',
+      style: {}, dataset: {}, classList: {
+        add(c) { classes.add(c); }, remove(c) { classes.delete(c); }, contains(c) { return classes.has(c); },
+        toggle(c, force) { const enabled = force ?? !classes.has(c); if (enabled) classes.add(c); else classes.delete(c); return enabled; }
+      },
+      innerHTML: '', value: '',
+      get innerText() { return text; }, set innerText(value) { text = String(value); },
+      get textContent() { return text; }, set textContent(value) { text = String(value); },
       append(...nodes) { this.children = [...(this.children || []), ...nodes]; }, replaceChildren(...nodes) { this.children = nodes; },
       addEventListener() {}, removeAttribute() {}, focus() {}, select() {},
       querySelector() { return element(); }, querySelectorAll() { return []; }
@@ -401,6 +407,21 @@ test('logout clears account data, media and private settings from the page', () 
   assert.equal(f.elements.get('codeTextarea').value,'');
   assert.equal(f.elements.get('settingDefaultPath').value,'');
   assert.equal(f.elements.get('manageUsersButton').style.display,'none');
+});
+
+test('switching accounts removes the audio panel, filename and pending playback state', async () => {
+  const f = fixture(); let finishPlayback;
+  f.sandbox.pendingPlayback = new Promise(resolve => { finishPlayback = resolve; });
+  f.run('audioPlayer.play=()=>pendingPlayback;playAudioTrack("C:/private/alice/secret-recording.mp3","secret-recording.mp3")');
+  assert.equal(f.elements.get('floatingAudioPlayer').classList.contains('active'), true);
+  assert.equal(f.elements.get('audioTrackTitle').textContent, 'secret-recording.mp3');
+  f.run('showLogin();applyAccountSession({user:{id:"bob",username:"bob",admin:false},privateStorage:true})');
+  finishPlayback(); await Promise.resolve(); await Promise.resolve();
+  assert.equal(f.elements.get('floatingAudioPlayer').classList.contains('active'), false);
+  for (const id of ['audioTrackTitle','audioTrackSub','audioCurrentTime','audioDuration']) assert.equal(f.elements.get(id).textContent, '');
+  assert.equal(f.run('isAudioPlaying'), false);
+  assert.equal(f.run('currentShareItem.path'), '');
+  assert.equal(f.run('audioPlayer.src'), '');
 });
 
 test('private navigation stays below the user home and hides account management from members', () => {
