@@ -50,6 +50,11 @@ try {
     if (Test-Path -LiteralPath $stagedExecutable) { Remove-Item -LiteralPath $stagedExecutable -Force }
 }
 
+# The server provisions ProgramData with a protected ACL at creation and rejects
+# pre-existing untrusted data before reading it. Do this before registering SYSTEM.
+& $serverExecutable -prepare-storage
+if ($LASTEXITCODE -ne 0) { throw 'Protected storage validation failed. Review the existing data ownership and permissions before migration.' }
+
 $taskAction = New-ScheduledTaskAction -Execute $serverExecutable -WorkingDirectory $installDirectory
 $taskTrigger = New-ScheduledTaskTrigger -AtStartup
 $taskPrincipal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest

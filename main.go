@@ -61,26 +61,45 @@ var (
 	//go:embed web/index.html
 	_webIndexHTML string
 
-	configFlag     = flag.String("c", "", "config address")
-	dbFlag         = flag.String("db", "", "db path")
-	versionFlag    = flag.Bool("v", false, "version")
-	tlsCertFlag    = flag.String("tls-cert", "", "HTTPS certificate PEM file")
-	tlsKeyFlag     = flag.String("tls-key", "", "HTTPS private key PEM file")
-	standaloneFlag = flag.Bool("standalone", runtime.GOOS == "windows", "Use local accounts and protected storage for the standalone dashboard")
+	configFlag         = flag.String("c", "", "config address")
+	dbFlag             = flag.String("db", "", "db path")
+	versionFlag        = flag.Bool("v", false, "version")
+	tlsCertFlag        = flag.String("tls-cert", "", "HTTPS certificate PEM file")
+	tlsKeyFlag         = flag.String("tls-key", "", "HTTPS private key PEM file")
+	standaloneFlag     = flag.Bool("standalone", runtime.GOOS == "windows", "Use local accounts and protected storage for the standalone dashboard")
+	prepareStorageFlag = flag.Bool("prepare-storage", false, "Validate and initialize protected standalone storage, then exit")
 )
 
-func initialize() {
+func initialize() *localauth.Manager {
 	flag.Parse()
 	if *versionFlag {
 		fmt.Println("v" + common.VERSION)
-		return
+		return nil
 	}
 
 	println("git commit:", commit)
 	println("build date:", date)
 
-	config.InitSetup(*configFlag, _confSample)
+	configPath := *configFlag
+	if configPath == "" {
+		configPath = config.CasaOSConfigFilePath
+	}
+	if *prepareStorageFlag && !*standaloneFlag {
+		panic("-prepare-storage requires -standalone")
+	}
+	if *standaloneFlag {
+		var err error
+		configPath, err = filepath.Abs(configPath)
+		if err != nil {
+			panic(err)
+		}
+		if err := privatefs.PrepareConfig(configPath); err != nil {
+			panic(fmt.Errorf("refuse untrusted service configuration: %w", err))
+		}
+	}
+	config.InitSetup(configPath, _confSample)
 
+	var auth *localauth.Manager
 	if *standaloneFlag {
 		config.PrivateStorageRoot = filepath.Join(filepath.Dir(config.AppInfo.UserDataPath), "files")
 		defaults := storagepaths.Default()
@@ -89,6 +108,17 @@ func initialize() {
 		}
 		if file.InternalStoragePath(config.DefaultStorageRoot()) {
 			panic("CASAOS_DATA_ROOT cannot use internal service storage")
+		}
+		var err error
+		auth, err = localauth.NewWithStorage(filepath.Join(config.AppInfo.UserDataPath, "auth"), config.PrivateStorageRoot)
+		if err != nil {
+			panic(fmt.Errorf("initialize protected local accounts: %w", err))
+		}
+		if err := privatefs.ConfigureTemporaryDirectory(filepath.Join(filepath.Dir(config.AppInfo.UserDataPath), "tmp")); err != nil {
+			panic(fmt.Errorf("protect temporary uploads: %w", err))
+		}
+		if *prepareStorageFlag {
+			return auth
 		}
 		if err := os.MkdirAll(config.CommonInfo.RuntimePath, 0700); err != nil {
 			panic(err)
@@ -119,6 +149,7 @@ func initialize() {
 	///
 	//service.MountLists = make(map[string]*mountlib.MountPoint)
 	//configfile.Install()
+	return auth
 }
 
 // @title casaOS API
@@ -133,8 +164,12 @@ func initialize() {
 // @name Authorization
 // @BasePath /v1
 func main() {
-	initialize()
+	auth := initialize()
 	if *versionFlag {
+		return
+	}
+	if *prepareStorageFlag {
+		fmt.Println("Protected standalone storage is ready:", config.PrivateStorageRoot)
 		return
 	}
 	if (*tlsCertFlag == "") != (*tlsKeyFlag == "") {
@@ -282,13 +317,6 @@ func main() {
 	if *standaloneFlag {
 		authDir := filepath.Join(config.AppInfo.UserDataPath, "auth")
 		privateRoot := filepath.Join(filepath.Dir(config.AppInfo.UserDataPath), "files")
-		auth, err := localauth.NewWithStorage(authDir, privateRoot)
-		if err != nil {
-			panic(fmt.Errorf("initialize administrator login: %w", err))
-		}
-		if err := privatefs.ConfigureTemporaryDirectory(filepath.Join(filepath.Dir(config.AppInfo.UserDataPath), "tmp")); err != nil {
-			panic(fmt.Errorf("protect temporary uploads: %w", err))
-		}
 		handler = auth.Middleware(privateFilesHandler(mainHandler))
 		fmt.Printf("  Administrator username: admin\n  Private user storage: %s\n", privateRoot)
 		fmt.Printf("  Initial administrator password file: %s\n", filepath.Join(authDir, "initial-password.txt"))

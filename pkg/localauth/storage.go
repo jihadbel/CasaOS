@@ -25,7 +25,7 @@ func NewWithStorage(dir, root string) (*Manager, error) {
 	if err := privatefs.ProtectDirectory(root); err != nil {
 		return nil, err
 	}
-	m, err := New(dir)
+	m, err := newManager(dir, privatefs.ProtectDirectory)
 	if err != nil {
 		return nil, err
 	}

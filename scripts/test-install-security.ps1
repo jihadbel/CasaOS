@@ -36,4 +36,8 @@ foreach ($file in @('install-service.ps1', 'scripts\install-security.ps1')) {
 }
 $source = Get-Content -LiteralPath (Join-Path $repositoryRoot 'install-service.ps1') -Raw
 if ($source -notmatch 'SpecialFolder\]::ProgramFiles' -or $source -notmatch '\-WorkingDirectory \$installDirectory' -or $source -notmatch '\-Execute \$serverExecutable') { throw 'Task does not use the protected installation.' }
+if ($source -notmatch '& \$serverExecutable -prepare-storage' -or
+    $source.IndexOf('& $serverExecutable -prepare-storage') -gt $source.IndexOf('Register-ScheduledTask')) {
+    throw 'Protected storage must be validated before registering the SYSTEM task.'
+}
 Write-Output 'PASS: installer syntax and protected task target; no task registered.'

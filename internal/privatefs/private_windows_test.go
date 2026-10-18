@@ -78,3 +78,46 @@ func TestPrivateWindowsACLAppliedToExistingDescendants(t *testing.T) {
 		}
 	}
 }
+
+func TestPrivateConfigDirectoriesAreProtectedAtCreation(t *testing.T) {
+	if !windows.GetCurrentProcessToken().IsElevated() {
+		t.Skip("creating Administrators-owned storage requires elevation")
+	}
+	root := filepath.Join(t.TempDir(), "service")
+	configDir := filepath.Join(root, "conf")
+	path := filepath.Join(configDir, "casaos.conf")
+	if err := PrepareConfig(path); err != nil {
+		t.Fatal(err)
+	}
+	for _, directory := range []string{root, configDir} {
+		sd, err := windows.GetNamedSecurityInfo(directory, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+		if err != nil {
+			t.Fatal(err)
+		}
+		owner, _, err := sd.Owner()
+		if err != nil || owner.String() != "S-1-5-32-544" {
+			t.Fatal("new directory was not born Administrators-owned", owner, err)
+		}
+		if err := checkDescriptor(sd, false); err != nil {
+			t.Fatal("new directory was not born private", err)
+		}
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("preparation created configuration contents", err)
+	}
+	// A trusted custom config directory must not have its own ACL rewritten.
+	before, err := windows.GetNamedSecurityInfo(configDir, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("trusted config"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := PrepareConfig(path); err != nil {
+		t.Fatal(err)
+	}
+	after, err := windows.GetNamedSecurityInfo(configDir, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	if err != nil || before.String() != after.String() {
+		t.Fatal("preparing a custom config changed its parent ACL", err)
+	}
+}
