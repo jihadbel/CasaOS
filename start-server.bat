@@ -8,10 +8,13 @@ echo           CasaOS Windows Home Cloud File & Photo Server
 echo ================================================================
 echo.
 
-:: Ensure default DATA directory exists
-if not exist "C:\CasaOS\DATA" (
-    echo [*] Creating default storage directory: C:\CasaOS\DATA
-    mkdir "C:\CasaOS\DATA" 2>nul
+:: Private file storage requires the privileged service or an elevated process.
+powershell.exe -NoProfile -NonInteractive -Command "$principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent()); if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 1 }"
+if errorlevel 1 (
+    echo [!] Run as administrator, or use install-service.bat to run as SYSTEM.
+    echo [!] Ordinary Windows accounts cannot access the server's private files.
+    pause
+    exit /b 1
 )
 
 :: Check if pre-compiled executable exists

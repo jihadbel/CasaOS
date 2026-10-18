@@ -20,6 +20,7 @@ import (
 	util_http "github.com/IceWhaleTech/CasaOS-Common/utils/http"
 
 	"github.com/IceWhaleTech/CasaOS/common"
+	"github.com/IceWhaleTech/CasaOS/internal/privatefs"
 	"github.com/IceWhaleTech/CasaOS/pkg/cache"
 	"github.com/IceWhaleTech/CasaOS/pkg/config"
 	"github.com/IceWhaleTech/CasaOS/pkg/localauth"
@@ -65,7 +66,7 @@ var (
 	versionFlag    = flag.Bool("v", false, "version")
 	tlsCertFlag    = flag.String("tls-cert", "", "HTTPS certificate PEM file")
 	tlsKeyFlag     = flag.String("tls-key", "", "HTTPS private key PEM file")
-	standaloneFlag = flag.Bool("standalone", runtime.GOOS == "windows", "Use local administrator login for the standalone dashboard")
+	standaloneFlag = flag.Bool("standalone", runtime.GOOS == "windows", "Use local accounts and protected storage for the standalone dashboard")
 )
 
 func initialize() {
@@ -81,20 +82,13 @@ func initialize() {
 	config.InitSetup(*configFlag, _confSample)
 
 	if *standaloneFlag {
+		config.PrivateStorageRoot = filepath.Join(filepath.Dir(config.AppInfo.UserDataPath), "files")
 		defaults := storagepaths.Default()
 		if err := storagepaths.Validate(&defaults); err != nil {
 			panic(fmt.Errorf("invalid storage configuration: %w", err))
 		}
 		if file.InternalStoragePath(config.DefaultStorageRoot()) {
 			panic("CASAOS_DATA_ROOT cannot use internal service storage")
-		}
-		for _, folder := range []string{"Photos", "Videos", "Documents", "Music", "Applications", "Archives", "Mobile_Uploads"} {
-			if err := os.MkdirAll(filepath.Join(config.DefaultStorageRoot(), folder), 0755); err != nil {
-				panic(err)
-			}
-		}
-		if err := initTrashSystem(); err != nil {
-			panic(err)
 		}
 		if err := os.MkdirAll(config.CommonInfo.RuntimePath, 0700); err != nil {
 			panic(err)
@@ -287,11 +281,16 @@ func main() {
 	var handler http.Handler = mainHandler
 	if *standaloneFlag {
 		authDir := filepath.Join(config.AppInfo.UserDataPath, "auth")
-		auth, err := localauth.New(authDir)
+		privateRoot := filepath.Join(filepath.Dir(config.AppInfo.UserDataPath), "files")
+		auth, err := localauth.NewWithStorage(authDir, privateRoot)
 		if err != nil {
 			panic(fmt.Errorf("initialize administrator login: %w", err))
 		}
-		handler = auth.Middleware(mainHandler)
+		if err := privatefs.ConfigureTemporaryDirectory(filepath.Join(filepath.Dir(config.AppInfo.UserDataPath), "tmp")); err != nil {
+			panic(fmt.Errorf("protect temporary uploads: %w", err))
+		}
+		handler = auth.Middleware(privateFilesHandler(mainHandler))
+		fmt.Printf("  Administrator username: admin\n  Private user storage: %s\n", privateRoot)
 		fmt.Printf("  Initial administrator password file: %s\n", filepath.Join(authDir, "initial-password.txt"))
 	}
 	s := &http.Server{
@@ -308,7 +307,11 @@ func main() {
 		for _, ip := range ip_helper.GetDeviceAllIPv4() {
 			fmt.Printf("  📱 Mobile / Wi-Fi   : %s://%s:%s\n", scheme, ip, port)
 		}
-		fmt.Println("  📁 Default Storage  :", config.DefaultStorageRoot())
+		if *standaloneFlag {
+			fmt.Println("  Private Storage    :", config.PrivateStorageRoot)
+		} else {
+			fmt.Println("  Default Storage    :", config.DefaultStorageRoot())
+		}
 		fmt.Println("================================================================")
 	}
 
