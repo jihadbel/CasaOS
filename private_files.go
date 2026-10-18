@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/IceWhaleTech/CasaOS/internal/safefs"
+	"github.com/IceWhaleTech/CasaOS/internal/textfile"
 	"github.com/IceWhaleTech/CasaOS/model"
 	"github.com/IceWhaleTech/CasaOS/pkg/localauth"
 	"github.com/IceWhaleTech/CasaOS/pkg/storagepaths"
@@ -42,6 +43,11 @@ func privateFilesHandler(next http.Handler) http.Handler {
 			}
 		}()
 		if err := authorizeFileRequest(w, r, u); err != nil {
+			var tooLarge *http.MaxBytesError
+			if errors.As(err, &tooLarge) {
+				apiError(w, http.StatusRequestEntityTooLarge, errors.New("request is too large"))
+				return
+			}
 			apiError(w, 403, errors.New("operation is outside your private storage or is unavailable"))
 			return
 		}
@@ -158,12 +164,22 @@ func authorizeFileRequest(w http.ResponseWriter, r *http.Request, u localauth.Id
 		return nil
 	}
 	decode := func(value interface{}) error {
-		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 24<<20))
+		limit := int64(24 << 20)
+		if p == "/v1/file" && method == http.MethodPut {
+			limit = textfile.MaxEditorRequestBytes
+		}
+		if r.ContentLength > limit {
+			return &http.MaxBytesError{Limit: limit}
+		}
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit))
 		if err := decoder.Decode(value); err != nil {
 			return err
 		}
 		var extra interface{}
 		if err := decoder.Decode(&extra); err != io.EOF {
+			if err != nil {
+				return err
+			}
 			return denied
 		}
 		return nil

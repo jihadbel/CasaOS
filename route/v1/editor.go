@@ -4,10 +4,12 @@ import (
 	"errors"
 	"io"
 	"os"
+
+	"github.com/IceWhaleTech/CasaOS/internal/textfile"
 )
 
-const maxEditorFileBytes = 16 << 20
-const maxEditorRequestBytes = 64 << 20
+const maxEditorFileBytes = textfile.MaxEditorFileBytes
+const maxEditorRequestBytes = textfile.MaxEditorRequestBytes
 
 var errEditorTooLarge = errors.New("editor supports files up to 16 MiB; download larger files to edit them locally")
 

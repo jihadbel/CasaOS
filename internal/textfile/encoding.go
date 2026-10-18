@@ -10,6 +10,12 @@ import (
 	"unicode/utf8"
 )
 
+const MaxEditorFileBytes = 16 << 20
+
+// JSON can use six bytes per input byte (for example, escaped control characters).
+// Include room for the path and JSON fields without lowering the file limit.
+const MaxEditorRequestBytes = 6*MaxEditorFileBytes + (64 << 10)
+
 type Format struct {
 	encoding string
 	bom      bool

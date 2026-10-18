@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/IceWhaleTech/CasaOS/internal/textfile"
 	"github.com/IceWhaleTech/CasaOS/internal/userctx"
 	"github.com/IceWhaleTech/CasaOS/pkg/config"
 	"github.com/IceWhaleTech/CasaOS/pkg/localauth"
@@ -258,5 +259,67 @@ func TestPrivateUserFolderCreationAndLargeUploadSpooling(t *testing.T) {
 	w := privateRequest(t, h, "GET", "/v1/folder?path="+url.QueryEscape(folder), nil, "alice")
 	if w.Code != 200 || !strings.Contains(w.Body.String(), "same.txt") {
 		t.Fatal(w.Code, w.Body.String())
+	}
+}
+
+func TestPrivateEditorSavesReadableFilesWithExpandedJSON(t *testing.T) {
+	alice, _, h := privateTestUsers(t)
+	for _, entry := range []struct{ name, content string }{
+		{"quotes.txt", strings.Repeat("\"", 13<<20)},
+		// This valid text expands past 64 MiB when encoded as JSON.
+		{"escaped.txt", strings.Repeat("<\x01\"", textfile.MaxEditorFileBytes/3)},
+	} {
+		t.Run(entry.name, func(t *testing.T) {
+			path := filepath.Join(alice.Home, entry.name)
+			if err := os.WriteFile(path, []byte(entry.content), 0600); err != nil {
+				t.Fatal(err)
+			}
+			get := privateRequest(t, h, "GET", "/v1/file/content?path="+url.QueryEscape(path), nil, "alice")
+			if get.Code != 200 {
+				t.Fatal("read", get.Code)
+			}
+			put := privateRequest(t, h, "PUT", "/v1/file", map[string]string{"path": path, "content": entry.content}, "alice")
+			if put.Code != 200 {
+				t.Fatal("save", put.Code, put.Body.String())
+			}
+			data, err := os.ReadFile(path)
+			if err != nil || string(data) != entry.content {
+				t.Fatal("editor changed the text", err)
+			}
+		})
+	}
+}
+
+func TestPrivateGatewayReturns413ForOversizedBodiesWithoutWriting(t *testing.T) {
+	alice, _, h := privateTestUsers(t)
+	path := filepath.Join(alice.Home, "unchanged.txt")
+	writeTestFile(t, path, "original")
+	r := httptest.NewRequest("PUT", "/v1/file", strings.NewReader("{}"))
+	r.Header.Set("Content-Type", "application/json")
+	r.ContentLength = textfile.MaxEditorRequestBytes + 1
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	// Unknown-length bodies must also retain the size error after the first JSON value.
+	folder := filepath.Join(alice.Home, "never-created")
+	body, err := json.Marshal(map[string]string{"path": folder})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r = httptest.NewRequest("POST", "/v1/folder", io.MultiReader(bytes.NewReader(body), strings.NewReader(strings.Repeat(" ", (24<<20)+1))))
+	r.ContentLength = -1
+	r.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	if _, err := os.Stat(folder); !os.IsNotExist(err) {
+		t.Fatal("oversized request created a folder", err)
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != "original" {
+		t.Fatal("oversized editor request changed the file", err)
 	}
 }
