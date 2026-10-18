@@ -17,3 +17,6 @@ import (
 )
 
 var CasaOSConfigFilePath = filepath.Join(constants.DefaultConfigPath, "casaos.conf")
+
+// PrivateStorageRoot is enabled only behind the standalone ownership gateway.
+var PrivateStorageRoot string

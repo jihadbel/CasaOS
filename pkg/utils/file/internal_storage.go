@@ -14,11 +14,20 @@ func InternalStoragePath(path string) bool {
 	if err != nil {
 		return true
 	}
+	// Legacy gateway mode must not export an existing standalone account vault.
+	vault := filepath.Join(filepath.Dir(config.AppInfo.UserDataPath), "files")
+	if config.PrivateStorageRoot == "" && (strings.EqualFold(abs, vault) || safefs.Within(vault, abs)) {
+		return true
+	}
+	privateUserFile := config.PrivateStorageRoot != "" && safefs.Within(config.PrivateStorageRoot, abs)
 	for _, root := range []string{config.AppInfo.UserDataPath, config.AppInfo.DBPath, config.CommonInfo.RuntimePath} {
 		if root == "" {
 			continue
 		}
 		internal, err := filepath.Abs(root)
+		if privateUserFile && err == nil && safefs.Within(internal, config.PrivateStorageRoot) {
+			continue
+		}
 		if err == nil && (strings.EqualFold(abs, internal) || safefs.Within(internal, abs)) {
 			return true
 		}

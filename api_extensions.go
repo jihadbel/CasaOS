@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/IceWhaleTech/CasaOS/internal/safefs"
+	"github.com/IceWhaleTech/CasaOS/pkg/localauth"
 	"github.com/IceWhaleTech/CasaOS/pkg/utils/file"
 )
 
@@ -66,6 +67,11 @@ func handleMediaTimeline(w http.ResponseWriter, r *http.Request) {
 
 	// Scan folders (default to Photos, Videos, Mobile_Uploads)
 	settings, _, err := readStorageSettings()
+	identity, private := localauth.CurrentUser(r)
+	private = private && identity.Home != ""
+	if private {
+		settings, err = readPrivateSettings(identity)
+	}
 	if err != nil {
 		apiError(w, 500, err)
 		return
@@ -75,6 +81,9 @@ func handleMediaTimeline(w http.ResponseWriter, r *http.Request) {
 	customFolder := r.URL.Query().Get("folder")
 	if customFolder != "" {
 		clean, err := file.ValidateStoragePath(customFolder)
+		if private {
+			clean, err = scopedUserPath(identity, customFolder, true)
+		}
 		if err != nil {
 			apiError(w, http.StatusBadRequest, err)
 			return
@@ -82,7 +91,11 @@ func handleMediaTimeline(w http.ResponseWriter, r *http.Request) {
 		scanDirs = []string{clean}
 	}
 	for _, dir := range scanDirs {
-		if _, err := file.ValidateStoragePath(dir); err != nil {
+		_, err := file.ValidateStoragePath(dir)
+		if private {
+			_, err = scopedUserPath(identity, dir, true)
+		}
+		if err != nil {
 			apiError(w, http.StatusBadRequest, err)
 			return
 		}
