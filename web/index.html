@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>CasaOS | لوحة التحكم وسحابة الملفات</title>
     <!-- Modern Typography: Plus Jakarta Sans & IBM Plex Sans Arabic -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+
+
 
     <style>
         :root {
@@ -2045,7 +2045,8 @@
 <body>
 <div id="loginOverlay" style="position:fixed;inset:0;z-index:10000;background:#f8fafc;display:flex;align-items:center;justify-content:center;padding:24px;" dir="rtl">
 <form id="loginForm" style="max-width:420px;padding:32px;background:white;border-radius:20px;box-shadow:0 12px 50px #0001;">
-<h2>تسجيل الدخول إلى CasaOS</h2><p>أدخل كلمة مرور المسؤول. عند التشغيل الأول تجدها في initial-password.txt داخل مجلد auth في إعدادات CasaOS.</p>
+<h2>تسجيل الدخول إلى CasaOS</h2><p>ادخل بحسابك المحلي للوصول إلى ملفاتك الخاصة. الحساب الأول هو admin وكلمة مروره في initial-password.txt.</p>
+<label for="loginUsername">اسم المستخدم</label><input id="loginUsername" type="text" autocomplete="username" value="admin" required maxlength="32" class="search-input" style="width:100%;margin:12px 0;direction:ltr;">
 <label for="loginPassword">كلمة المرور</label><input id="loginPassword" type="password" autocomplete="current-password" required class="search-input" style="width:100%;margin:12px 0;">
 <p id="loginError" role="alert" style="color:#dc2626;"></p><button id="loginSubmit" type="submit" class="btn btn-primary">دخول</button>
 </form></div>
@@ -2762,13 +2763,28 @@
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem;">
-                <input id="newAdminPassword" type="password" autocomplete="new-password" minlength="12" placeholder="كلمة مرور جديدة (12 حرفاً على الأقل)" class="search-input" style="min-width:0;">
+                <span id="currentAccountLabel" style="align-self:center;"></span>
+ <input id="newAdminPassword" type="password" autocomplete="new-password" minlength="12" placeholder="كلمة مرور جديدة (12 حرفاً على الأقل)" class="search-input" style="min-width:0;">
                 <button class="btn btn-secondary" onclick="changeAdminPassword()">تغيير كلمة المرور</button>
-                <button class="btn btn-secondary" onclick="logout()">خروج</button>
+                <button id="manageUsersButton" class="btn btn-secondary" onclick="openUsersModal()" style="display:none;">إدارة المستخدمين</button>
+ <button class="btn btn-secondary" onclick="logout()">خروج</button>
                 <button class="btn btn-secondary" onclick="resetDefaultSettings()">استعادة الافتراضي</button>
                 <button class="btn btn-primary" onclick="saveSettings()">حفظ وتطبيق الإعدادات</button>
             </div>
         </div>
+    </div>
+
+    <div class="modal" id="usersModal">
+      <div class="modal-card" style="max-width:720px;">
+        <div class="modal-header"><div class="modal-title">المستخدمون المحليون</div><button class="modal-close" onclick="closeUsersModal()" aria-label="إغلاق">×</button></div>
+        <p>لكل حساب ملفاته الخاصة. تعطيل الحساب يوقف الدخول ويحافظ على ملفاته.</p>
+        <form id="createUserForm" onsubmit="createLocalUser(event)" style="display:flex;gap:10px;flex-wrap:wrap;margin:16px 0;">
+          <input id="newUsername" class="search-input" placeholder="اسم المستخدم (3–32 حرفاً إنجليزياً)" autocomplete="off" pattern="[a-zA-Z0-9][a-zA-Z0-9_.-]{2,31}" required maxlength="32" style="flex:1;min-width:180px;direction:ltr;">
+          <input id="newUserPassword" class="search-input" type="password" placeholder="كلمة المرور (12 حرفاً على الأقل)" autocomplete="new-password" required minlength="12" maxlength="72" style="flex:1;min-width:180px;">
+          <button id="createUserButton" type="submit" class="btn btn-primary">إنشاء الحساب</button>
+        </form>
+        <p id="usersMessage" role="status"></p><div id="usersList" style="display:grid;gap:12px;"></div>
+      </div>
     </div>
 
     <!-- 2. Phone Connect QR Code Modal -->
@@ -3021,8 +3037,14 @@
 
  let authenticated=false,bootstrapped=false,serverAddresses=[],selectedLANHost='';
  let folderRequestID=0;
+ let currentAccount=null,privateStorageMode=false,accountEpoch=0;const activeUploads=new Set();
  const realFetch=globalThis.fetch.bind(globalThis);
- globalThis.fetch=async(...args)=>{const res=await realFetch(...args);if(res.status===401)showLogin();return res;};
+ globalThis.fetch=async(...args)=>{
+   const epoch=accountEpoch,res=await realFetch(...args);
+   if(epoch!==accountEpoch)throw Error('تم تغيير الحساب');
+   if(res.status===401){showLogin();return res;}
+   const readJSON=res.json.bind(res);res.json=async()=>{const data=await readJSON();if(epoch!==accountEpoch)throw Error('تم تغيير الحساب');return data;};return res;
+ };
  function escapeHTML(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
  function actionAttrs(action,data={}){
    let attrs=`data-action="${escapeHTML(action)}"`;
@@ -3055,11 +3077,27 @@
     case 'quick-drive':setQuickDriveTarget(d.drive);break;
    }
  }
- function showLogin(){authenticated=false;document.getElementById('loginOverlay').style.display='flex';document.getElementById('loginPassword').value='';}
- async function startDashboard(){
+ function clearPrivateView(){
+  ++accountEpoch;++folderRequestID;++timelineRequestID;timelineAbortController?.abort();resetTimelineVideoPreviews();
+  for(const xhr of activeUploads)xhr.abort?.();activeUploads.clear();
+  audioPlayer.pause();audioPlayer.src='';audioPlaylist=[];currentAudioIndex=-1;mediaPlaylist=[];allItems=[];filteredItems=[];trashedItemsList=[];
+  closeLightbox();closeCodeModal();closePdfModal();closeSettingsModal();closeUsersModal();closeShareModal();closePhoneModal();
+  document.getElementById('codeTextarea').value='';document.getElementById('newAdminPassword').value='';document.getElementById('newUserPassword').value='';document.getElementById('usersList').replaceChildren();document.getElementById('shareUrlInput').value='';document.getElementById('shareQrImg').removeAttribute('src');
+  for(const id of ['viewContainer','timelineContainer','trashTableBody'])document.getElementById(id).replaceChildren();
+  document.getElementById('uploadToast').style.display='none';
+  currentAccount=null;selectedLANHost='';serverAddresses=[];document.getElementById('manageUsersButton').style.display='none';
+  for(const id of ['currentAccountLabel','shareFileName','codeModalTitle','lightboxTitle','pdfModalTitle','uploadTargetNotice'])document.getElementById(id).textContent='';
+  for(const id of ['settingDefaultPath','settingAppsPath','settingArchivesPath','settingPhotosPath','settingVideosPath','settingDocumentsPath','settingMusicPath','settingMobilePath'])document.getElementById(id).value='';
+  document.getElementById('breadcrumbsContainer').replaceChildren();localStorage.removeItem?.('casaos_path_settings');
+ }
+ function showLogin(){authenticated=false;clearPrivateView();document.getElementById('loginOverlay').style.display='flex';document.getElementById('loginPassword').value='';}
+ function applyAccountSession(info){currentAccount=info?.user||null;privateStorageMode=!!info?.privateStorage;document.getElementById('manageUsersButton').style.display=currentAccount?.admin?'inline-flex':'none';document.getElementById('currentAccountLabel').textContent=currentAccount?'الحساب: '+currentAccount.username:'';}
+ function privateDefaultSettings(){const root=appSettings.defaultPath;return {smartAutoSort:true,defaultPath:root,appsPath:root+'/Applications',archivesPath:root+'/Archives',photosPath:root+'/Photos',videosPath:root+'/Videos',documentsPath:root+'/Documents',musicPath:root+'/Music',mobilePath:root+'/Mobile_Uploads'};}
+ async function startDashboard(sessionInfo=null){
+ if(sessionInfo)applyAccountSession(sessionInfo);
    const res=await fetch('/api/settings'),data=await res.json();
    if(!res.ok||!data.success)throw Error(data.error||'تعذر قراءة إعدادات التخزين');
-   appSettings={...DEFAULT_SETTINGS,...data.settings};currentPath=appSettings.defaultPath;applySettingsToUI();
+   appSettings={...DEFAULT_SETTINGS,...data.settings};currentPath=appSettings.defaultPath;privateStorageMode=!!data.privateStorage;applySettingsToUI();
    const info=await fetch('/api/server-info');if(info.ok)serverAddresses=(await info.json()).addresses||[];
    setupPhoneQRCode();authenticated=true;document.getElementById('loginOverlay').style.display='none';
    const tab=window.location.hash.slice(1);switchMainTab(['dashboard','files','timeline','trash'].includes(tab)?tab:'dashboard');
@@ -3079,12 +3117,12 @@
  async function submitLogin(event){
    event.preventDefault();const error=document.getElementById('loginError'),button=document.getElementById('loginSubmit');button.disabled=true;error.textContent='';
    try{
-     const res=await realFetch('/api/auth/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('loginPassword').value})});
-     if(!res.ok)throw Error(res.status===429?'محاولات كثيرة؛ انتظر 15 دقيقة':'كلمة المرور غير صحيحة');
-     document.getElementById('loginPassword').value='';await startDashboard();
+     const res=await realFetch('/api/auth/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('loginUsername').value,password:document.getElementById('loginPassword').value})});
+     if(!res.ok)throw Error(res.status===429?'محاولات كثيرة؛ انتظر 15 دقيقة':'اسم المستخدم أو كلمة المرور غير صحيح');
+     document.getElementById('loginPassword').value='';const session=await realFetch('/api/auth/session');await startDashboard(await session.json());
    }catch(err){error.textContent=err.message;}finally{button.disabled=false;}
  }
- async function logout(){await realFetch('/api/auth/session',{method:'DELETE'});audioPlayer.pause();closeLightbox();closeCodeModal();closePdfModal();closeSettingsModal();showLogin();}
+ async function logout(){try{const res=await realFetch('/api/auth/session',{method:'DELETE'});if(!res.ok)throw Error('تعذر تسجيل الخروج');showLogin();}catch(err){alert(err.message);}}
  async function changeAdminPassword(){
    const input=document.getElementById('newAdminPassword');
    try{
@@ -3092,6 +3130,29 @@
      if(!res.ok)throw Error(data.error||'تعذر تغيير كلمة المرور');
      input.value='';closeSettingsModal();showLogin();alert('تم تغيير كلمة المرور. سجل الدخول بكلمة المرور الجديدة.');
    }catch(err){alert(err.message);}
+ }
+
+ function closeUsersModal(){document.getElementById('usersModal').classList.remove('active');}
+ async function openUsersModal(){if(!currentAccount?.admin)return;closeSettingsModal();document.getElementById('usersModal').classList.add('active');await loadLocalUsers();}
+ async function loadLocalUsers(){
+  const list=document.getElementById('usersList');list.replaceChildren();
+  try{const res=await fetch('/api/users'),data=await res.json();if(!res.ok)throw Error(data.error||'تعذر قراءة الحسابات');
+   for(const user of data.users||[]){
+    const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px;border:1px solid #e2e8f0;border-radius:12px;';
+    const label=document.createElement('span');label.textContent=user.username+(user.admin?' — المسؤول':user.disabled?' — معطل':' — نشط');row.append(label);
+    if(!user.admin){const password=document.createElement('input');password.type='password';password.autocomplete='new-password';password.className='search-input';password.placeholder='كلمة مرور جديدة';password.minLength=12;password.maxLength=72;
+     const reset=document.createElement('button');reset.className='btn btn-secondary';reset.textContent='تعيين كلمة المرور';reset.addEventListener('click',async()=>{if(password.value.length<12){document.getElementById('usersMessage').textContent='كلمة المرور لا تقل عن 12 حرفاً';return;}await updateLocalUser(user.id,{password:password.value});password.value='';});
+     const toggle=document.createElement('button');toggle.className='btn btn-secondary';toggle.textContent=user.disabled?'تفعيل':'تعطيل';toggle.addEventListener('click',()=>updateLocalUser(user.id,{disabled:!user.disabled}));row.append(password,reset,toggle);
+    }list.append(row);
+   }
+  }catch(err){document.getElementById('usersMessage').textContent=err.message;}
+ }
+ async function createLocalUser(event){
+  event.preventDefault();const button=document.getElementById('createUserButton');button.disabled=true;
+  try{const res=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('newUsername').value,password:document.getElementById('newUserPassword').value})}),data=await res.json();if(!res.ok)throw Error(data.error||'تعذر إنشاء الحساب');document.getElementById('newUserPassword').value='';document.getElementById('newUsername').value='';document.getElementById('usersMessage').textContent='تم إنشاء الحساب ومخزنه الخاص';await loadLocalUsers();}catch(err){document.getElementById('usersMessage').textContent=err.message;}finally{button.disabled=false;}
+ }
+ async function updateLocalUser(id,body){
+  try{const res=await fetch('/api/users/'+encodeURIComponent(id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),data=await res.json();if(!res.ok)throw Error(data.error||'تعذر تحديث الحساب');document.getElementById('usersMessage').textContent='تم تحديث الحساب وإلغاء جلساته السابقة';await loadLocalUsers();}catch(err){document.getElementById('usersMessage').textContent=err.message;}
  }
  async function persistSettings(settings){
    const res=await fetch('/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)}),data=await res.json();
@@ -3167,7 +3228,7 @@
         document.addEventListener('DOMContentLoaded',async()=>{
             setupDragAndDrop();document.addEventListener('click',onFileAction);
             document.getElementById('loginForm').addEventListener('submit',submitLogin);
-            try{const res=await realFetch('/api/auth/session');if(res.status===404||(res.ok&&(await res.json()).authenticated))await startDashboard();else showLogin();}
+            try{const res=await realFetch('/api/auth/session');if(res.status===404)await startDashboard();else{const info=await res.json();if(res.ok&&info.authenticated)await startDashboard(info);else showLogin();}}
             catch(err){document.getElementById('loginError').textContent=err.message;}
         });
 
@@ -3188,7 +3249,7 @@
          try{await persistSettings(next);closeSettingsModal();switchMainTab(activeTab);alert('تم حفظ إعدادات التخزين لجميع الأجهزة.');}catch(err){alert(err.message);}
         }
 
-        async function resetDefaultSettings(){try{await persistSettings({...DEFAULT_SETTINGS});populateSettingsModal();}catch(err){alert(err.message);}}
+        async function resetDefaultSettings(){try{await persistSettings(privateStorageMode?privateDefaultSettings():{...DEFAULT_SETTINGS});populateSettingsModal();}catch(err){alert(err.message);}}
 
         function applySettingsToUI() {
             const label = document.getElementById('autoSortStatusLabel');
@@ -3220,6 +3281,7 @@
         }
 
         function populateSettingsModal() {
+ document.getElementById('settingDefaultPath').readOnly=privateStorageMode;document.getElementById('quickPartitionButtons').parentElement?.style&&(document.getElementById('quickPartitionButtons').parentElement.style.display=privateStorageMode?'none':'');
             document.getElementById('smartAutoSortToggle').checked = !!appSettings.smartAutoSort;
             document.getElementById('settingAppsPath').value = appSettings.appsPath || DEFAULT_SETTINGS.appsPath;
             document.getElementById('settingArchivesPath').value = appSettings.archivesPath || DEFAULT_SETTINGS.archivesPath;
@@ -3246,6 +3308,7 @@
         }
 
         function setQuickDriveTarget(drive) {
+ if(privateStorageMode)return;
             const basePath = `${drive}:/CasaOS/DATA`;
             document.getElementById('settingDefaultPath').value = basePath;
             document.getElementById('settingAppsPath').value = `${basePath}/Applications`;
@@ -3430,8 +3493,9 @@
 
         function renderBreadcrumbs(){
          const container=document.getElementById('breadcrumbsContainer');container.replaceChildren();
-         const root=document.createElement('span');root.className='crumb-item';root.textContent='الأقراص';root.addEventListener('click',()=>navigateToFolder('/'));container.append(root);
-         const parts=currentPath.split(/[/\\]+/).filter(Boolean);let accumulated=/^(\\\\|\/\/)/.test(currentPath)?'\\\\':'';
+         const root=document.createElement('span');root.className='crumb-item';root.textContent=privateStorageMode?'ملفاتي':'الأقراص';root.addEventListener('click',()=>navigateToFolder(privateStorageMode?appSettings.defaultPath:'/'));container.append(root);
+         const displayPath=privateStorageMode?currentPath.replaceAll('\\','/').slice(appSettings.defaultPath.replaceAll('\\','/').length):currentPath;
+         const parts=displayPath.split(/[/\\]+/).filter(Boolean);let accumulated=privateStorageMode?appSettings.defaultPath:(/^(\\\\|\/\/)/.test(currentPath)?'\\\\':'');
          const labels={DATA:'التخزين الرئيسي',Applications:'البرامج',Archives:'الأرشيفات',Photos:'الصور',Videos:'الفيديوهات',Documents:'المستندات',Music:'الصوتيات',Mobile_Uploads:'رفع الهاتف'};
          parts.forEach((part,index)=>{
            if(index===0&&part.endsWith(':'))accumulated=part+'/';else accumulated+=(accumulated.endsWith('/')||accumulated.endsWith('\\')?'':'/')+part;
@@ -3684,6 +3748,7 @@
                 const json = await res.json();
                 if (json.success === 200 && json.data) {
                     const data = json.data;
+ if(privateStorageMode&&Array.isArray(data.disks)){const normalized=appSettings.defaultPath.replaceAll("\\","/").toLowerCase();const disk=[...data.disks].sort((a,b)=>(b.path||"/").length-(a.path||"/").length).find(d=>normalized.startsWith((d.path||"/").replaceAll("\\","/").toLowerCase()));data.disks=disk?[{...disk,path:appSettings.defaultPath,private:true}]:[];}
 
                     // 1. CPU Update
                     if (data.cpu) {
@@ -3724,7 +3789,7 @@
                             const pct = Math.round(d.usedPercent || 0);
                             const driveLetter = d.drive || 'C';
                             const isSystem = driveLetter.toUpperCase() === 'C';
-                            const driveLabel = isSystem ? 'قرص النظام' : 'قرص محلي';
+                            const driveLabel = d.private?'التخزين الخاص':isSystem ? 'قرص النظام' : 'قرص محلي';
 
                             // Color grading
                             let barColor = 'linear-gradient(90deg, #7c3aed, #8b5cf6)';
@@ -3743,7 +3808,7 @@
                                     <div class="drive-nav-header">
                                         <div style="display: flex; align-items: center; gap: 0.35rem;">
                                             <svg class="icon icon-sm" style="color: var(--disk-color);" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/></svg>
-                                            <span>القرص (${driveLetter}:)</span>
+                                            <span>${d.private?'ملفاتي':'القرص ('+driveLetter+':)'}</span>
                                         </div>
                                         <span style="font-family: var(--font-en); font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);">${pct}%</span>
                                     </div>
@@ -3984,6 +4049,7 @@
         }
 
         async function uploadFiles(files, isMobile = false) {
+ const epoch=accountEpoch;
             const toast = document.getElementById('uploadToast');
             const bar = document.getElementById('uploadProgressBar');
             const percentText = document.getElementById('uploadPercentText');
@@ -4008,7 +4074,7 @@
                 formData.append('path', targetDir);
 
                 const uploadError = await new Promise((resolve) => {
-                    const xhr = new XMLHttpRequest();
+                    const xhr = new XMLHttpRequest();activeUploads.add(xhr);
                     xhr.open('POST', '/v1/file/upload', true);
 
                     xhr.upload.onprogress = (e) => {
@@ -4020,20 +4086,23 @@
                     };
 
                     xhr.onload = () => {
+ activeUploads.delete(xhr);
                         if(xhr.status===401)showLogin();
                         try{const result=JSON.parse(xhr.responseText);resolve(xhr.status>=200&&xhr.status<300&&result.success===200?null:(result.message||result.error||'فشل الرفع'));}catch{resolve('استجابة خادم غير صالحة');}
                     };
-                    xhr.onerror=()=>resolve('انقطع الاتصال');xhr.onabort=()=>resolve('تم إلغاء الرفع');xhr.ontimeout=()=>resolve('انتهت المهلة');xhr.timeout=30*60*1000;
+                    xhr.onerror=()=>{activeUploads.delete(xhr);resolve('انقطع الاتصال');};xhr.onabort=()=>{activeUploads.delete(xhr);resolve('تم إلغاء الرفع');};xhr.ontimeout=()=>{activeUploads.delete(xhr);resolve('انتهت المهلة');};xhr.timeout=30*60*1000;
                     xhr.send(formData);
                 });
-                if(uploadError)uploadFailures.push(file.name+': '+uploadError);
+                if(epoch!==accountEpoch)return;
+ if(uploadError)uploadFailures.push(file.name+': '+uploadError);
             }
 
             statusText.innerText = uploadFailures.length?'فشل رفع '+uploadFailures.length+' من '+files.length:'تم الرفع والتصنيف بنجاح!';
             if(uploadFailures.length)alert(uploadFailures.join('\n'));
             bar.style.width = '100%';
             setTimeout(() => {
-                toast.style.display = 'none';
+                if(epoch!==accountEpoch)return;
+ toast.style.display = 'none';
                 loadCurrentFolder();
                 loadLiveMetrics();
             }, 1200);
@@ -4414,6 +4483,7 @@
         // Smart Recycle Bin Engine (Trash with Restore)
         // =========================================================================
         async function loadTrash() {
+ const epoch=accountEpoch;
             const table = document.getElementById('trashTable');
             const tbody = document.getElementById('trashTableBody');
             const empty = document.getElementById('trashEmptyState');
@@ -4425,7 +4495,8 @@
             try {
                 const res = await fetch('/api/trash');
                 const data = await res.json();
-                if (!res.ok || !data.success) throw Error(data.error || 'تعذر قراءة السلة');
+                if(epoch!==accountEpoch)return;
+ if (!res.ok || !data.success) throw Error(data.error || 'تعذر قراءة السلة');
                 trashedItemsList = data.items || [];
 
                 if (badge) {
@@ -4705,7 +4776,7 @@
          const origin=lanOrigin();if(!origin){alert('اتصل بالشبكة أو أدخل عنوان الجهاز في نافذة ربط الهاتف.');return;}
          currentShareItem={path,name,size};document.getElementById('shareFileName').textContent=name;document.getElementById('shareFileSize').textContent=size>0?formatBytes(size):'رابط يتطلب تسجيل الدخول';
          const url=origin+'/v1/file?path='+encodeURIComponent(path);
-         document.getElementById('shareUrlInput').value=url;document.getElementById('shareQrImg').src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encodeURIComponent(url);document.getElementById('shareModal').classList.add('active');
+         document.getElementById('shareUrlInput').value=url;const image=document.getElementById('shareQrImg');image.style.display=privateStorageMode?'none':'';if(privateStorageMode)image.removeAttribute('src');else image.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encodeURIComponent(url);document.getElementById('shareModal').classList.add('active');
         }
 
         function closeShareModal() {
@@ -4723,7 +4794,7 @@
          host=host.trim();if(host&&!/^[a-zA-Z0-9.\-]+$/.test(host))return;selectedLANHost=host;
          const origin=lanOrigin(),label=origin||'لا يوجد عنوان شبكة متاح';
          document.getElementById('lanUrlText').textContent=label;document.getElementById('heroIpAddress').textContent=label;document.getElementById('netIpText').textContent=host||'غير متصل';
-         const qr=document.getElementById('qrImage');if(origin)qr.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encodeURIComponent(origin);else qr.removeAttribute('src');
+         const qr=document.getElementById('qrImage');qr.style.display=privateStorageMode?'none':'';if(privateStorageMode){qr.removeAttribute('src');return;}if(origin)qr.src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encodeURIComponent(origin);else qr.removeAttribute('src');
         }
 
         function openPhoneModal() {

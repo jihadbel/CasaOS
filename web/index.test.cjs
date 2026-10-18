@@ -6,13 +6,13 @@ const vm = require('node:vm');
 const html = fs.readFileSync(__dirname + '/index.html', 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 
-function fixture() {
+function fixture(fetchImpl = null) {
   const elements = new Map(), alerts = [];
   function element() {
     return {
       style: {}, dataset: {}, classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
       innerHTML: '', innerText: '', textContent: '', value: '',
-      append() {}, replaceChildren(...nodes) { this.children = nodes; },
+      append(...nodes) { this.children = [...(this.children || []), ...nodes]; }, replaceChildren(...nodes) { this.children = nodes; },
       addEventListener() {}, removeAttribute() {}, focus() {}, select() {},
       querySelector() { return element(); }, querySelectorAll() { return []; }
     };
@@ -33,7 +33,7 @@ function fixture() {
     localStorage: { getItem() { return null; }, setItem() {} },
     Audio: class { addEventListener() {} pause() {} play() { return Promise.resolve(); } },
     FormData: class { append() {} },
-    fetch: async () => ({ ok: true, status: 200, json: async () => ({ success: 200, data: { content: [] } }) })
+    fetch: fetchImpl || (async () => ({ ok: true, status: 200, json: async () => ({ success: 200, data: { content: [] } }) }))
   };
   vm.createContext(sandbox);
   vm.runInContext(script, sandbox);
@@ -391,4 +391,54 @@ test('editor explains unsupported encodings and does not enable saving', async (
   assert.match(f.elements.get('codeStatus').textContent,/UTF-8/);
   assert.equal(f.elements.get('btnSaveCode').disabled,true);
   assert.equal(f.elements.get('codeTextarea').value,'');
+});
+
+test('logout clears account data, media and private settings from the page', () => {
+  const f=fixture();
+  f.run('currentAccount={id:"alice",username:"alice",admin:true};allItems=[{name:"private.txt"}];filteredItems=allItems;audioPlaylist=[{path:"private.mp3"}];mediaPlaylist=[{path:"private.jpg"}];trashedItemsList=[{id:"private"}];document.getElementById("codeTextarea").value="private contents";document.getElementById("settingDefaultPath").value="alice home";showLogin()');
+  assert.equal(f.run('currentAccount'),null);
+  for(const name of ['allItems','filteredItems','audioPlaylist','mediaPlaylist','trashedItemsList'])assert.equal(f.run(name+'.length'),0);
+  assert.equal(f.elements.get('codeTextarea').value,'');
+  assert.equal(f.elements.get('settingDefaultPath').value,'');
+  assert.equal(f.elements.get('manageUsersButton').style.display,'none');
+});
+
+test('private navigation stays below the user home and hides account management from members', () => {
+  const f=fixture();
+  f.run('applyAccountSession({user:{id:"alice",username:"alice",admin:false},privateStorage:true});appSettings.defaultPath="C:/service/files/alice";currentPath="C:/service/files/alice/Photos";renderBreadcrumbs()');
+  assert.equal(f.elements.get('manageUsersButton').style.display,'none');
+  const labels=f.elements.get('breadcrumbsContainer').children.map(n=>n.textContent);
+  assert.deepEqual(labels,['ملفاتي','/','الصور']);
+  assert.equal(f.run('privateDefaultSettings().defaultPath'),'C:/service/files/alice');
+  f.run('applyAccountSession({user:{id:"admin",username:"admin",admin:true},privateStorage:true})');
+  assert.equal(f.elements.get('manageUsersButton').style.display,'inline-flex');
+});
+
+test('responses from a logged out account cannot repopulate the page', async () => {
+  let release;
+  const f=fixture(()=>new Promise(resolve=>release=resolve));
+  const pending=f.run('fetch("/api/trash")');
+  f.run('showLogin()');
+  release({ok:true,status:200,json:async()=>({items:[{name:'private.txt'}]})});
+  await assert.rejects(pending,/تم تغيير الحساب/);
+});
+
+test('local login sends the username and displays the authenticated account', async () => {
+  const requests=[];
+  const f=fixture(async(url,options)=>{requests.push({url,options});return{ok:true,status:200,json:async()=>url==='/api/auth/session'?{authenticated:true,user:{id:'alice',username:'alice',admin:false},privateStorage:true}:{}};});
+  f.sandbox.fetch=async url=>({ok:true,json:async()=>url==='/api/settings'?{success:true,privateStorage:true,settings:{defaultPath:'C:/private/alice'}}:{addresses:[]}});
+  f.sandbox.switchMainTab=()=>{};
+  f.run('document.getElementById("loginUsername").value="alice";document.getElementById("loginPassword").value="password-123456"');
+  await f.run('submitLogin({preventDefault(){}})');
+  const loginRequest=requests.find(r=>r.options?.method==='POST');
+  assert.deepEqual(JSON.parse(loginRequest.options.body),{username:'alice',password:'password-123456'});
+  assert.equal(f.run('currentAccount.username'),'alice');
+  assert.equal(f.elements.get('loginPassword').value,'');
+});
+
+test('private file links never send filenames to the external QR service', () => {
+  const f=fixture();f.run('privateStorageMode=true;serverAddresses=["192.168.1.5"];openShareModal("C:/private/alice/secret.txt","secret.txt",5);setupPhoneQRCode()');
+  assert.equal(f.elements.get('shareQrImg').style.display,'none');
+  assert.equal(f.elements.get('shareQrImg').src,undefined);
+  assert.equal(f.elements.get('qrImage').style.display,'none');
 });
