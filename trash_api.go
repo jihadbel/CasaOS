@@ -15,6 +15,7 @@ import (
 
 	"github.com/IceWhaleTech/CasaOS/internal/safefs"
 	"github.com/IceWhaleTech/CasaOS/pkg/config"
+	"github.com/IceWhaleTech/CasaOS/pkg/localauth"
 	fileutil "github.com/IceWhaleTech/CasaOS/pkg/utils/file"
 	"github.com/google/uuid"
 )
@@ -34,34 +35,43 @@ var (
 	trashMutex    sync.Mutex
 )
 
-func trashManifestPath() string { return filepath.Join(RecycleBinDir, "trash_manifest.json") }
+type trashStore struct{ root, home string }
+
+func legacyTrashStore() trashStore              { return trashStore{root: RecycleBinDir} }
+func trashManifestPath() string                 { return legacyTrashStore().manifestPath() }
+func trashDirectory(source string) string       { return legacyTrashStore().directory(source) }
+func initTrashSystem() error                    { return legacyTrashStore().init() }
+func loadTrashManifest() ([]TrashItem, error)   { return legacyTrashStore().load() }
+func saveTrashManifest(items []TrashItem) error { return legacyTrashStore().save(items) }
+func validateTrashItem(item TrashItem) error    { return legacyTrashStore().validate(item) }
+func (s trashStore) manifestPath() string       { return filepath.Join(s.root, "trash_manifest.json") }
 
 // Keep recycled content on its original volume, while retaining one central index.
-func trashDirectory(source string) string {
-	if runtime.GOOS == "windows" && !strings.EqualFold(filepath.VolumeName(source), filepath.VolumeName(RecycleBinDir)) {
+func (s trashStore) directory(source string) string {
+	if s.home == "" && runtime.GOOS == "windows" && !strings.EqualFold(filepath.VolumeName(source), filepath.VolumeName(s.root)) {
 		return filepath.Join(filepath.VolumeName(source)+string(os.PathSeparator), ".CasaOS-RecycleBin")
 	}
-	return RecycleBinDir
+	return s.root
 }
 
-func initTrashSystem() error {
-	if err := safefs.NoLinks(RecycleBinDir); err != nil {
+func (s trashStore) init() error {
+	if err := safefs.NoLinks(s.root); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(RecycleBinDir, 0700); err != nil {
+	if err := os.MkdirAll(s.root, 0700); err != nil {
 		return err
 	}
 	return nil
 }
 
-func loadTrashManifest() ([]TrashItem, error) {
-	if err := initTrashSystem(); err != nil {
+func (s trashStore) load() ([]TrashItem, error) {
+	if err := s.init(); err != nil {
 		return nil, err
 	}
-	if err := safefs.NoLinks(trashManifestPath()); err != nil {
+	if err := safefs.NoLinks(s.manifestPath()); err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(trashManifestPath())
+	data, err := os.ReadFile(s.manifestPath())
 	if os.IsNotExist(err) {
 		return []TrashItem{}, nil
 	}
@@ -73,15 +83,15 @@ func loadTrashManifest() ([]TrashItem, error) {
 		return nil, fmt.Errorf("recycle bin index is damaged; original index retained: %w", err)
 	}
 	for _, item := range items {
-		if err := validateTrashItem(item); err != nil {
+		if err := s.validate(item); err != nil {
 			return nil, err
 		}
 	}
 	return items, nil
 }
 
-func saveTrashManifest(items []TrashItem) error {
-	if err := initTrashSystem(); err != nil {
+func (s trashStore) save(items []TrashItem) error {
+	if err := s.init(); err != nil {
 		return err
 	}
 	if items == nil {
@@ -91,17 +101,25 @@ func saveTrashManifest(items []TrashItem) error {
 	if err != nil {
 		return err
 	}
-	return safefs.WriteAtomic(trashManifestPath(), data, 0600)
+	return safefs.WriteAtomic(s.manifestPath(), data, 0600)
 }
 
-func validateTrashItem(item TrashItem) error {
+func (s trashStore) validate(item TrashItem) error {
+	if s.home != "" {
+		if !safefs.Within(s.home, filepath.Clean(item.OriginalPath)) {
+			return errors.New("recycle item belongs to another account")
+		}
+		if _, err := fileutil.ValidateUserPath(item.OriginalPath); err != nil {
+			return err
+		}
+	}
 	if item.ID == "" || filepath.Base(item.ID) != item.ID || strings.ContainsAny(item.ID, `/:`) {
 		return errors.New("invalid recycle bin item ID")
 	}
 	if !filepath.IsAbs(item.OriginalPath) || !filepath.IsAbs(item.TrashPath) {
 		return errors.New("recycle bin item paths must be absolute")
 	}
-	root, err := filepath.Abs(trashDirectory(item.OriginalPath))
+	root, err := filepath.Abs(s.directory(item.OriginalPath))
 	if err != nil {
 		return err
 	}
@@ -117,9 +135,16 @@ func validateTrashItem(item TrashItem) error {
 }
 
 func handleTrash(w http.ResponseWriter, r *http.Request) {
+	s := legacyTrashStore()
+	if u, ok := localauth.CurrentUser(r); ok && u.Home != "" {
+		s = trashStore{root: filepath.Join(u.Home, ".CasaOS-RecycleBin"), home: u.Home}
+	}
+	s.handle(w, r)
+}
+func (s trashStore) handle(w http.ResponseWriter, r *http.Request) {
 	trashMutex.Lock()
 	defer trashMutex.Unlock()
-	items, err := loadTrashManifest()
+	items, err := s.load()
 	if err != nil {
 		apiError(w, 500, err)
 		return
@@ -160,12 +185,12 @@ func handleTrash(w http.ResponseWriter, r *http.Request) {
 			apiError(w, 400, err)
 			return
 		}
-		root, err := filepath.Abs(trashDirectory(source))
+		root, err := filepath.Abs(s.directory(source))
 		if err != nil {
 			apiError(w, 400, err)
 			return
 		}
-		central, _ := filepath.Abs(RecycleBinDir)
+		central, _ := filepath.Abs(s.root)
 		if sameFilePath(source, filepath.Dir(source)) || sameFilePath(source, root) || safefs.Within(source, root) || sameFilePath(source, central) || safefs.Within(source, central) || safefs.Within(root, source) || safefs.Within(central, source) {
 			apiError(w, 400, errors.New("cannot recycle a storage root or recycle bin content"))
 			return
@@ -191,12 +216,12 @@ func handleTrash(w http.ResponseWriter, r *http.Request) {
 		item := TrashItem{ID: id, OriginalPath: filepath.ToSlash(source), TrashPath: filepath.ToSlash(filepath.Join(root, id+"_"+filepath.Base(source))), Name: filepath.Base(source), Size: info.Size(), DeletedAt: time.Now(), IsDir: info.IsDir()}
 		// Persist the recovery path before moving the source. A crash cannot orphan a moved file.
 		pending := append(append([]TrashItem{}, items...), item)
-		if err := saveTrashManifest(pending); err != nil {
+		if err := s.save(pending); err != nil {
 			apiError(w, 500, err)
 			return
 		}
 		if err := safefs.NoReplace(source, item.TrashPath); err != nil {
-			rollback := saveTrashManifest(items)
+			rollback := s.save(items)
 			apiError(w, 500, errors.Join(err, rollback))
 			return
 		}
@@ -225,7 +250,7 @@ func handleTrash(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		item := items[index]
-		if err := validateTrashItem(item); err != nil {
+		if err := s.validate(item); err != nil {
 			apiError(w, 400, err)
 			return
 		}
@@ -243,7 +268,7 @@ func handleTrash(w http.ResponseWriter, r *http.Request) {
 				apiError(w, 409, err)
 				return
 			}
-			if err := saveTrashManifest(remaining); err != nil {
+			if err := s.save(remaining); err != nil {
 				rollback := safefs.NoReplace(item.OriginalPath, item.TrashPath)
 				apiError(w, 500, errors.Join(err, rollback))
 				return
@@ -254,7 +279,7 @@ func handleTrash(w http.ResponseWriter, r *http.Request) {
 				apiError(w, 500, err)
 				return
 			}
-			if err := saveTrashManifest(remaining); err != nil {
+			if err := s.save(remaining); err != nil {
 				apiError(w, 500, err)
 				return
 			}
@@ -267,7 +292,7 @@ func handleTrash(w http.ResponseWriter, r *http.Request) {
 		}
 		// Only remove indexed, validated items; never sweep unknown recovery content.
 		for i, item := range items {
-			if err := validateTrashItem(item); err != nil {
+			if err := s.validate(item); err != nil {
 				apiError(w, 400, err)
 				return
 			}
@@ -276,7 +301,7 @@ func handleTrash(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			// Persist each completed removal before attempting the next item.
-			if err := saveTrashManifest(items[i+1:]); err != nil {
+			if err := s.save(items[i+1:]); err != nil {
 				apiError(w, 500, err)
 				return
 			}
