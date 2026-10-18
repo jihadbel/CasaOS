@@ -221,7 +221,7 @@ func TestFullAttemptTableEvictsOldestWithoutGlobalLockout(t *testing.T) {
 				delete(m.attempts, "host-1023")
 				count := 1
 				if entry.blocked {
-					count = 10
+					count = maxHostAttempts
 				}
 				m.attempts[entry.host] = attempt{count: count, until: now.Add(time.Minute), last: now}
 			}

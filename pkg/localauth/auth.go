@@ -24,6 +24,9 @@ import (
 const cookieName = "casaos_session"
 const sessionLife = 12 * time.Hour
 const maxAttemptHosts = 1024
+const maxHostAttempts = 100
+const maxAccountAttempts = 10
+const maxSessionsPerUser = 16
 
 type attempt struct {
 	count int
@@ -31,15 +34,16 @@ type attempt struct {
 	last  time.Time
 }
 type Manager struct {
-	mu           sync.Mutex
-	hash         []byte
-	dir          string
-	sessions     map[string]time.Time
-	attempts     map[string]attempt
-	users        map[string]userRecord
-	sessionUsers map[string]string
-	storageRoot  string
-	protectHome  func(string) error
+	mu              sync.Mutex
+	hash            []byte
+	dir             string
+	sessions        map[string]time.Time
+	attempts        map[string]attempt
+	accountAttempts map[string]attempt
+	users           map[string]userRecord
+	sessionUsers    map[string]string
+	storageRoot     string
+	protectHome     func(string) error
 }
 
 func Authenticated(r *http.Request) bool { _, ok := CurrentUser(r); return ok }
@@ -55,16 +59,20 @@ func randomToken() (string, error) {
 // New creates a unique bootstrap password in a directory restricted to its owner,
 // Administrators and SYSTEM. The hash is the only persistent login verifier.
 func New(dir string) (*Manager, error) {
+	return newManager(dir, protectDirectory)
+}
+
+func newManager(dir string, secureDirectory func(string) error) (*Manager, error) {
 	if err := safefs.NoLinks(dir); err != nil {
 		return nil, err
 	}
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
-	if err := protectDirectory(dir); err != nil {
+	if err := secureDirectory(dir); err != nil {
 		return nil, err
 	}
-	m := &Manager{dir: dir, sessions: map[string]time.Time{}, attempts: map[string]attempt{}, sessionUsers: map[string]string{}}
+	m := &Manager{dir: dir, sessions: map[string]time.Time{}, attempts: map[string]attempt{}, accountAttempts: map[string]attempt{}, sessionUsers: map[string]string{}}
 	hashPath := filepath.Join(dir, "password.hash")
 	hash, err := os.ReadFile(hashPath)
 	if os.IsNotExist(err) {
@@ -216,36 +224,16 @@ func (m *Manager) session(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: requestScheme(r) == "https", MaxAge: -1})
 		writeJSON(w, 200, map[string]bool{"authenticated": false})
 	case http.MethodPost:
-		// Bound brute-force work and the number of tracked addresses.
+		// Keep an aggregate address budget as well as a separate account budget.
+		// Successful login to one account cannot clear failures for another.
 		host, _, _ := net.SplitHostPort(r.RemoteAddr)
 		m.mu.Lock()
 		now := time.Now()
-		for key, a := range m.attempts {
-			if now.After(a.until) {
-				delete(m.attempts, key)
-			}
-		}
-		a, known := m.attempts[host]
-		if a.count >= 10 {
+		if !reserveAttempt(m.attempts, host, maxHostAttempts, now) {
 			m.mu.Unlock()
 			writeJSON(w, 429, map[string]string{"error": "Try again in 15 minutes"})
 			return
 		}
-		if !known && len(m.attempts) >= maxAttemptHosts {
-			// Bound memory without turning one full table into a global lockout.
-			var oldest string
-			var last time.Time
-			for key, candidate := range m.attempts {
-				if oldest == "" || candidate.last.Before(last) {
-					oldest, last = key, candidate.last
-				}
-			}
-			delete(m.attempts, oldest)
-		}
-		a.count++
-		a.until = now.Add(15 * time.Minute)
-		a.last = now
-		m.attempts[host] = a
 		m.mu.Unlock()
 		var body struct {
 			Username string `json:"username"`
@@ -259,7 +247,17 @@ func (m *Manager) session(w http.ResponseWriter, r *http.Request) {
 		if name == "" {
 			name = "admin"
 		}
+		// Invalid usernames share one bounded bucket; valid names are at most 32 bytes.
+		if !usernamePattern.MatchString(name) {
+			name = "\x00invalid"
+		}
+		attemptKey := host + "\x00" + name
 		m.mu.Lock()
+		if !reserveAttempt(m.accountAttempts, attemptKey, maxAccountAttempts, now) {
+			m.mu.Unlock()
+			writeJSON(w, 429, map[string]string{"error": "Try again in 15 minutes"})
+			return
+		}
 		var account userRecord
 		for _, candidate := range m.users {
 			if candidate.Username == name {
@@ -296,12 +294,13 @@ func (m *Manager) session(w http.ResponseWriter, r *http.Request) {
 				delete(m.sessionUsers, key)
 			}
 		}
-		if len(m.sessions) >= 1024 {
-			m.mu.Unlock()
-			writeJSON(w, 503, map[string]string{"error": "Too many sessions"})
-			return
+		// Re-authentication replaces this browser's old session for the same user.
+		if cookie, err := r.Cookie(cookieName); err == nil && m.sessionUsers[cookie.Value] == account.ID {
+			delete(m.sessions, cookie.Value)
+			delete(m.sessionUsers, cookie.Value)
 		}
-		delete(m.attempts, host)
+		m.makeSessionRoomLocked(account.ID)
+		delete(m.accountAttempts, attemptKey)
 		m.sessions[token] = now.Add(sessionLife)
 		m.sessionUsers[token] = account.ID
 		m.mu.Unlock()
