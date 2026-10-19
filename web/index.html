@@ -3036,7 +3036,7 @@
     <script>
 
  let authenticated=false,bootstrapped=false,serverAddresses=[],selectedLANHost='';
- let folderRequestID=0;
+ let folderRequestID=0,folderLoadState='ready',localLoginEnabled=true;
  let currentAccount=null,privateStorageMode=false,accountEpoch=0;const activeUploads=new Set();
  const realFetch=globalThis.fetch.bind(globalThis);
  globalThis.fetch=async(...args)=>{
@@ -3079,6 +3079,7 @@
  }
  function clearPrivateView(){
   ++accountEpoch;++folderRequestID;++timelineRequestID;timelineAbortController?.abort();resetTimelineVideoPreviews();
+  folderLoadState='ready';
   for(const xhr of activeUploads)xhr.abort?.();activeUploads.clear();
   closeAudioPlayer();audioPlayer.src='';audioPlaylist=[];currentAudioIndex=-1;mediaPlaylist=[];allItems=[];filteredItems=[];trashedItemsList=[];
   for(const id of ['audioTrackTitle','audioTrackSub','audioCurrentTime','audioDuration'])document.getElementById(id).textContent='';
@@ -3092,7 +3093,21 @@
   for(const id of ['settingDefaultPath','settingAppsPath','settingArchivesPath','settingPhotosPath','settingVideosPath','settingDocumentsPath','settingMusicPath','settingMobilePath'])document.getElementById(id).value='';
   document.getElementById('breadcrumbsContainer').replaceChildren();localStorage.removeItem?.('casaos_path_settings');
  }
- function showLogin(){authenticated=false;clearPrivateView();document.getElementById('loginOverlay').style.display='flex';document.getElementById('loginPassword').value='';}
+ function showLogin(){authenticated=false;clearPrivateView();localLoginEnabled=true;for(const id of ['loginUsername','loginPassword','loginSubmit'])document.getElementById(id).disabled=false;document.getElementById('loginOverlay').style.display='flex';document.getElementById('loginPassword').value='';}
+ function showGatewayLogin(){
+   showLogin();localLoginEnabled=false;
+   for(const id of ['loginUsername','loginPassword','loginSubmit'])document.getElementById(id).disabled=true;
+   document.getElementById('loginError').textContent='تسجيل الدخول المحلي غير مفعّل في هذا الخادم. استخدم واجهة CasaOS عبر البوابة، أو اطلب من مسؤول الخادم تشغيل الوضع المستقل بالخيار -standalone وصلاحيات الخدمة المناسبة.';
+ }
+ async function initializeDashboardSession(){
+   try{
+     const res=await realFetch('/api/auth/session');
+     if(res.status===404){await startDashboard();return;}
+     const info=await res.json();
+     if(res.ok&&info.authenticationMode==='gateway'){showGatewayLogin();return;}
+     if(res.ok&&info.authenticated)await startDashboard(info);else showLogin();
+   }catch(err){document.getElementById('loginError').textContent=err.message;}
+ }
  function applyAccountSession(info){currentAccount=info?.user||null;privateStorageMode=!!info?.privateStorage;document.getElementById('manageUsersButton').style.display=currentAccount?.admin?'inline-flex':'none';document.getElementById('currentAccountLabel').textContent=currentAccount?'الحساب: '+currentAccount.username:'';}
  function privateDefaultSettings(){const root=appSettings.defaultPath;return {smartAutoSort:true,defaultPath:root,appsPath:root+'/Applications',archivesPath:root+'/Archives',photosPath:root+'/Photos',videosPath:root+'/Videos',documentsPath:root+'/Documents',musicPath:root+'/Music',mobilePath:root+'/Mobile_Uploads'};}
  async function startDashboard(sessionInfo=null){
@@ -3117,7 +3132,7 @@
    }
  }
  async function submitLogin(event){
-   event.preventDefault();const error=document.getElementById('loginError'),button=document.getElementById('loginSubmit');button.disabled=true;error.textContent='';
+   event.preventDefault();if(!localLoginEnabled)return;const error=document.getElementById('loginError'),button=document.getElementById('loginSubmit');button.disabled=true;error.textContent='';
    try{
      const res=await realFetch('/api/auth/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('loginUsername').value,password:document.getElementById('loginPassword').value})});
      if(!res.ok)throw Error(res.status===429?'محاولات كثيرة؛ انتظر 15 دقيقة':'اسم المستخدم أو كلمة المرور غير صحيح');
@@ -3230,8 +3245,7 @@
         document.addEventListener('DOMContentLoaded',async()=>{
             setupDragAndDrop();document.addEventListener('click',onFileAction);
             document.getElementById('loginForm').addEventListener('submit',submitLogin);
-            try{const res=await realFetch('/api/auth/session');if(res.status===404)await startDashboard();else{const info=await res.json();if(res.ok&&info.authenticated)await startDashboard(info);else showLogin();}}
-            catch(err){document.getElementById('loginError').textContent=err.message;}
+            await initializeDashboardSession();
         });
 
         // Settings Manager
@@ -3451,6 +3465,9 @@
 
         async function loadCurrentFolder() {
             const requestID=++folderRequestID,requestedPath=currentPath;
+            folderLoadState='loading';allItems=[];filteredItems=[];
+            if(activeTab!=='timeline')mediaPlaylist=[];
+            updateItemCounts();
             renderBreadcrumbs();
             const container = document.getElementById('viewContainer');
             const empty = document.getElementById('emptyState');
@@ -3469,10 +3486,12 @@
 
                 if(requestID!==folderRequestID||requestedPath!==currentPath)return;
                 if (json.success === 200 && json.data && json.data.content) {
+                    folderLoadState='ready';
                     allItems = json.data.content;
                     updateItemCounts();
                     applyCurrentFilter();
                 } else {
+                    folderLoadState='error';
                     container.innerHTML = `
                         <div class="state-container" style="color: var(--danger);">
                             <svg class="icon icon-xl" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -3482,7 +3501,8 @@
                     `;
                 }
             } catch (err) {
-                if(requestID!==folderRequestID)return;
+                if(requestID!==folderRequestID||requestedPath!==currentPath)return;
+                folderLoadState='error';
                 console.error(err);
                 container.innerHTML = `
                     <div class="state-container" style="color: var(--danger);">
@@ -3603,6 +3623,11 @@
         function renderItems() {
             const container = document.getElementById('viewContainer');
             const empty = document.getElementById('emptyState');
+
+            if(folderLoadState!=='ready'){
+                empty.style.display='none';
+                return;
+            }
 
             if (!filteredItems || filteredItems.length === 0) {
                 container.innerHTML = '';

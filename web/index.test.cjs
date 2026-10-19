@@ -463,3 +463,90 @@ test('private file links never send filenames to the external QR service', () =>
   assert.equal(f.elements.get('shareQrImg').src,undefined);
   assert.equal(f.elements.get('qrImage').style.display,'none');
 });
+
+test('failed folder navigation discards old files and preserves the error while filtering', async () => {
+  for (const transportFailure of [false, true]) {
+    const f = fixture(async () => {
+      if (transportFailure) throw Error('synthetic connection failure');
+      return {ok: false, status: 500, json: async () => ({success: 500, message: 'synthetic folder unavailable'})};
+    });
+    f.sandbox.console = {error() {}};
+    f.run('currentPath="/private/new-folder";allItems=[{name:"old-file.txt",path:"/private/old-folder/old-file.txt"}];filteredItems=[...allItems];mediaPlaylist=[{path:"/private/old-folder/old.jpg"}]');
+    await f.run('loadCurrentFolder()');
+    assert.equal(f.run('allItems.length'), 0);
+    assert.equal(f.run('filteredItems.length'), 0);
+    assert.equal(f.run('mediaPlaylist.length'), 0);
+    assert.equal(f.run('folderLoadState'), 'error');
+    const errorView = f.elements.get('viewContainer').innerHTML;
+    f.run('setCategoryFilter("all");changeSort("name_asc");setViewMode("list")');
+    assert.equal(f.elements.get('viewContainer').innerHTML, errorView);
+    assert.equal(errorView.includes('old-file.txt'), false);
+    assert.equal(f.elements.get('emptyState').style.display, 'none');
+    assert.equal(f.elements.get('countAll').innerText, '0');
+  }
+});
+
+test('pending navigation cannot restore old files and a successful retry replaces the error', async () => {
+  let complete;
+  const f = fixture(() => new Promise(resolve => { complete = resolve; }));
+  f.run('currentPath="/new";allItems=[{name:"old-file.txt"}];filteredItems=[...allItems]');
+  const pending = f.run('loadCurrentFolder()');
+  f.run('setCategoryFilter("photos")');
+  assert.equal(f.run('allItems.length'), 0);
+  assert.match(f.elements.get('viewContainer').innerHTML, /جارٍ تحميل/);
+  assert.equal(f.elements.get('emptyState').style.display, 'none');
+  complete({ok: false, status: 500, json: async () => ({success: 500, message: 'failed'})});
+  await pending;
+  const retry = f.run('loadCurrentFolder()');
+  complete({ok: true, status: 200, json: async () => ({success: 200, data: {content: [{name: 'new.jpg', path: '/new/new.jpg'}]}})});
+  await retry;
+  assert.equal(f.run('folderLoadState'), 'ready');
+  assert.equal(f.run('allItems[0].name'), 'new.jpg');
+  assert.match(f.elements.get('viewContainer').innerHTML, /new\.jpg/);
+});
+
+test('an obsolete failed folder request cannot replace a newer successful listing', async () => {
+  let finishOld;
+  const f = fixture(url => url.includes('old-folder')
+    ? new Promise(resolve => { finishOld = resolve; })
+    : Promise.resolve({ok: true, status: 200, json: async () => ({success: 200, data: {content: [{name: 'new.txt', path: '/new-folder/new.txt'}]}})}));
+  f.run('currentPath="/old-folder"');
+  const old = f.run('loadCurrentFolder()');
+  f.run('currentPath="/new-folder"');
+  await f.run('loadCurrentFolder()');
+  finishOld({ok: false, status: 500, json: async () => ({success: 500, message: 'obsolete failure'})});
+  await old;
+  assert.equal(f.run('folderLoadState'), 'ready');
+  assert.equal(f.run('allItems[0].name'), 'new.txt');
+  assert.equal(f.elements.get('viewContainer').innerHTML.includes('obsolete failure'), false);
+});
+
+test('gateway mode explains the unavailable local login and never submits a password', async () => {
+  const requests = [];
+  const f = fixture(async (url, options) => {
+    requests.push({url, method: options?.method || 'GET'});
+    return {ok: true, status: 200, json: async () => ({authenticated: false, authenticationMode: 'gateway'})};
+  });
+  await f.run('initializeDashboardSession()');
+  for (const id of ['loginUsername', 'loginPassword', 'loginSubmit']) assert.equal(f.elements.get(id).disabled, true);
+  assert.match(f.elements.get('loginError').textContent, /-standalone/);
+  await f.run('submitLogin({preventDefault(){}})');
+  assert.deepEqual(requests, [{url: '/api/auth/session', method: 'GET'}]);
+  assert.equal(f.run('authenticated'), false);
+});
+
+test('session discovery still enables local login and restores authenticated local sessions', async () => {
+  for (const authenticated of [false, true]) {
+    const info = {authenticated, user: {username: 'alice'}, privateStorage: true};
+    const f = fixture(async () => ({ok: true, status: 200, json: async () => info}));
+    let started = null;
+    f.sandbox.startDashboard = async session => { started = session; };
+    await f.run('initializeDashboardSession()');
+    if (authenticated) assert.equal(started, info);
+    else {
+      assert.equal(started, null);
+      assert.equal(f.elements.get('loginSubmit').disabled, false);
+      assert.equal(f.run('localLoginEnabled'), true);
+    }
+  }
+});
