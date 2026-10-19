@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/IceWhaleTech/CasaOS/internal/safefs"
+	"github.com/IceWhaleTech/CasaOS/internal/userctx"
 )
 
 const maxTimelineItems = 2000
@@ -24,10 +25,15 @@ func scanTimeline(ctx context.Context, roots []string, filter string, maxItems, 
 	items := make([]MediaItem, 0)
 	seen := make(map[string]bool)
 	visited, truncated := 0, false
+	identity, private := userctx.From(ctx)
 	var walk func(string, int) error
 	walk = func(dir string, depth int) error {
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		if private && identity.Home != "" && !sameFilePath(identity.Home, dir) && !safefs.Within(identity.Home, dir) {
+			truncated = true
+			return nil
 		}
 		if hiddenMediaPath(dir) {
 			return nil

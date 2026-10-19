@@ -356,10 +356,10 @@ func (c *systemService) GetDirPath(path string) ([]model.Path, error) {
 	dirs := []model.Path{}
 	if len(path) > 0 {
 		for _, l := range ls {
-			if l.Name() == ".CasaOS-RecycleBin" || l.Name() == "RecycleBin" && sameStoragePath(filepath.Join(path, l.Name()), filepath.Join(config.DefaultStorageRoot(), "RecycleBin")) {
+			filePath := filepath.Join(path, l.Name())
+			if localfile.InternalStoragePath(filePath) {
 				continue
 			}
-			filePath := filepath.Join(path, l.Name())
 			link, err := filepath.EvalSymlinks(filePath)
 			if err != nil {
 				link = filePath
@@ -381,10 +381,6 @@ func (c *systemService) GetDirPath(path string) ([]model.Path, error) {
 		dirs = append(dirs, model.Path{Name: "DATA", Path: "/DATA/", IsDir: true, Date: time.Now()})
 	}
 	return dirs, nil
-}
-
-func sameStoragePath(a, b string) bool {
-	return strings.EqualFold(filepath.Clean(a), filepath.Clean(b))
 }
 
 func (c *systemService) GetCpuInfo() []cpu.InfoStat {

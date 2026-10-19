@@ -90,15 +90,19 @@ func handleMediaTimeline(w http.ResponseWriter, r *http.Request) {
 		}
 		scanDirs = []string{clean}
 	}
-	for _, dir := range scanDirs {
-		_, err := file.ValidateStoragePath(dir)
+	for i, dir := range scanDirs {
+		var clean string
+		var err error
 		if private {
-			_, err = scopedUserPath(identity, dir, true)
+			clean, err = scopedUserPath(identity, dir, true)
+		} else {
+			clean, err = file.ValidateStoragePath(dir)
 		}
 		if err != nil {
 			apiError(w, http.StatusBadRequest, err)
 			return
 		}
+		scanDirs[i] = clean
 	}
 
 	filterType := r.URL.Query().Get("type") // "all", "photos", "videos"

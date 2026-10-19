@@ -321,6 +321,19 @@ func settingsForHome(home string) StorageSettings {
 	return StorageSettings{SmartAutoSort: true, AppsPath: filepath.Join(home, "Applications"), ArchivesPath: filepath.Join(home, "Archives"), PhotosPath: filepath.Join(home, "Photos"), VideosPath: filepath.Join(home, "Videos"), DocumentsPath: filepath.Join(home, "Documents"), MusicPath: filepath.Join(home, "Music"), MobilePath: filepath.Join(home, "Mobile_Uploads"), DefaultPath: home}
 }
 
+// Use the authorized paths, rather than retaining aliases which can name a
+// different location when passed directly to the filesystem (for example /).
+func normalizePrivateSettings(u localauth.Identity, settings *StorageSettings) error {
+	for _, path := range []*string{&settings.AppsPath, &settings.ArchivesPath, &settings.PhotosPath, &settings.VideosPath, &settings.DocumentsPath, &settings.MusicPath, &settings.MobilePath, &settings.DefaultPath} {
+		clean, err := scopedUserPath(u, *path, true)
+		if err != nil {
+			return err
+		}
+		*path = clean
+	}
+	return nil
+}
+
 func handlePrivateSettings(w http.ResponseWriter, r *http.Request, u localauth.Identity) {
 	settings, err := readPrivateSettings(u)
 	if err != nil {
@@ -333,14 +346,12 @@ func handlePrivateSettings(w http.ResponseWriter, r *http.Request, u localauth.I
 			apiError(w, 400, err)
 			return
 		}
-		for _, path := range requested.Roots() {
-			if _, err := scopedUserPath(u, path, true); err != nil {
-				apiError(w, 403, errors.New("storage settings must stay inside your own home"))
-				return
-			}
-		}
 		if !sameFilePath(requested.DefaultPath, u.Home) {
 			apiError(w, 400, errors.New("your private storage root cannot be changed"))
+			return
+		}
+		if err := normalizePrivateSettings(u, &requested); err != nil {
+			apiError(w, 403, errors.New("storage settings must stay inside your own home"))
 			return
 		}
 		settings = requested
@@ -380,10 +391,8 @@ func readPrivateSettings(u localauth.Identity) (StorageSettings, error) {
 	if !sameFilePath(s.DefaultPath, u.Home) {
 		return s, errors.New("invalid private storage settings")
 	}
-	for _, path := range s.Roots() {
-		if _, err := scopedUserPath(u, path, true); err != nil {
-			return s, err
-		}
+	if err := normalizePrivateSettings(u, &s); err != nil {
+		return s, err
 	}
 	return s, nil
 }

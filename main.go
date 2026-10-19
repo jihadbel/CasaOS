@@ -179,19 +179,7 @@ func main() {
 	if *tlsCertFlag != "" {
 		scheme = "https"
 	}
-	v1Router := route.InitV1Router()
-
-	v2Router := route.InitV2Router()
-	v2DocRouter := route.InitV2DocRouter(_docHTML, _docYAML)
-	v3File := route.InitFile()
-	mux := &util_http.HandlerMultiplexer{
-		HandlerMap: map[string]http.Handler{
-			"v1":  v1Router,
-			"v2":  v2Router,
-			"v3":  v3File,
-			"doc": v2DocRouter,
-		},
-	}
+	mux := newAPIHandler()
 
 	crontab := cron.New(cron.WithSeconds())
 	if _, err := crontab.AddFunc("@every 5s", route.SendAllHardwareStatusBySocket); err != nil {
@@ -256,7 +244,7 @@ func main() {
 	for i := 0; i < 2; i++ {
 		response, err := service.MyService.MessageBus().RegisterEventTypesWithResponse(context.Background(), common.EventTypes)
 		if err != nil {
-			logger.Info("message bus not reachable - running in standalone mode")
+			logger.Info("message bus not reachable; continuing without message bus")
 			break
 		}
 		if response != nil && response.StatusCode() != http.StatusOK {
@@ -354,10 +342,19 @@ func main() {
 	}
 }
 
+func newAPIHandler() http.Handler {
+	v1Router := route.InitV1Router()
+	return &util_http.HandlerMultiplexer{HandlerMap: map[string]http.Handler{
+		"v1": v1Router, "ping": v1Router,
+		"v2": route.InitV2Router(), "v3": route.InitFile(),
+		"doc": route.InitV2DocRouter(_docHTML, _docYAML),
+	}}
+}
+
 func dashboardHandler(mux http.Handler) http.Handler {
-	return route.AuthenticateExtensions(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	protected := route.AuthenticateExtensions(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
-		if strings.HasPrefix(p, "/v1") || strings.HasPrefix(p, "/v2") || strings.HasPrefix(p, "/v3") || strings.HasPrefix(p, "/doc") || strings.HasPrefix(p, "/ping") {
+		if strings.HasPrefix(p, "/v1") || strings.HasPrefix(p, "/v2") || strings.HasPrefix(p, "/v3") || strings.HasPrefix(p, "/doc") || p == "/ping" {
 			mux.ServeHTTP(w, r)
 			return
 		}
@@ -396,4 +393,19 @@ func dashboardHandler(mux http.Handler) http.Handler {
 		w.WriteHeader(http.StatusOK)
 		w.Write(htmlContent)
 	}))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// In local-account mode the outer auth middleware owns this endpoint.
+		// Otherwise expose only the mode, so the dashboard cannot offer a login
+		// form that the gateway-mode server is unable to authenticate.
+		if r.URL.Path == "/api/auth/session" {
+			w.Header().Set("Cache-Control", "no-store")
+			if r.Method != http.MethodGet {
+				apiError(w, http.StatusNotImplemented, fmt.Errorf("local authentication requires -standalone; otherwise use the CasaOS gateway"))
+				return
+			}
+			apiJSON(w, http.StatusOK, map[string]interface{}{"authenticated": false, "authenticationMode": "gateway"})
+			return
+		}
+		protected.ServeHTTP(w, r)
+	})
 }
