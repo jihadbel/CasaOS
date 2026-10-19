@@ -38,7 +38,7 @@ func (d *GoogleDrive) getRefreshToken() error {
 	if err != nil {
 		return err
 	}
-	logger.Info("get refresh token", zap.String("res", res.String()))
+	logger.Info("OAuth token response", zap.String("provider", "GoogleDrive"), zap.Int("status", res.StatusCode()))
 	if e.Error != "" {
 		return fmt.Errorf(e.Error)
 	}
@@ -60,7 +60,7 @@ func (d *GoogleDrive) refreshToken() error {
 	if err != nil {
 		return err
 	}
-	log.Debug(res.String())
+	log.WithField("status", res.StatusCode()).Debug("Google Drive token refresh response")
 	if e.Error != "" {
 		return fmt.Errorf(e.Error)
 	}

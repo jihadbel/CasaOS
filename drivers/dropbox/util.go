@@ -29,7 +29,7 @@ func (d *Dropbox) getRefreshToken() error {
 	if err != nil {
 		return err
 	}
-	logger.Info("get refresh token", zap.String("res", res.String()))
+	logger.Info("OAuth token response", zap.String("provider", "Dropbox"), zap.Int("status", res.StatusCode()))
 	if e.Error != "" {
 		return fmt.Errorf(e.Error)
 	}
@@ -50,7 +50,7 @@ func (d *Dropbox) refreshToken() error {
 	if err != nil {
 		return err
 	}
-	logger.Info("get refresh token", zap.String("res", res.String()))
+	logger.Info("OAuth token response", zap.String("provider", "Dropbox"), zap.Int("status", res.StatusCode()))
 	if e.Error != "" {
 		return fmt.Errorf(e.Error)
 	}

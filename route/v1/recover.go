@@ -69,7 +69,7 @@ func GetRecoverStorage(ctx echo.Context) error {
 			if cf["type"] == "drive" && cf["username"] == dmap["username"] {
 				err := service.MyService.Storage().CheckAndMountByName(v)
 				if err != nil {
-					logger.Error("check and mount by name error: ", zap.Error(err), zap.Any("name", cf["username"]))
+					return cloudRecoveryError(ctx, "GoogleDrive", "Failed to mount cloud storage", err)
 				}
 				notify["status"] = "warn"
 				notify["message"] = "The same configuration has been added"
@@ -89,13 +89,7 @@ func GetRecoverStorage(ctx echo.Context) error {
 		dmap["scope"] = "drive"
 		dmap["mount_point"] = "/mnt/" + username
 		dmap["token"] = `{"access_token":"` + google_drive.AccessToken + `","token_type":"Bearer","refresh_token":"` + google_drive.RefreshToken + `","expiry":"` + currentDate + `T` + currentTime.Add(time.Hour*1).Add(time.Minute*50).Format("15:04:05") + `Z"}`
-		service.MyService.Storage().CreateConfig(dmap, username, "drive")
-		service.MyService.Storage().MountStorage("/mnt/"+username, username+":")
-		notify := make(map[string]interface{})
-		notify["status"] = "success"
-		notify["message"] = "Success"
-		notify["driver"] = "GoogleDrive"
-		service.MyService.Notify().SendNotify(event, notify)
+		return completeCloudRecovery(ctx, dmap, username, "drive", "GoogleDrive")
 	} else if t == "Dropbox" {
 		dropbox := dropbox.GetConfig()
 
@@ -143,7 +137,7 @@ func GetRecoverStorage(ctx echo.Context) error {
 			}
 			if cf["type"] == "dropbox" && cf["username"] == dmap["username"] {
 				if err := service.MyService.Storage().CheckAndMountByName(v); err != nil {
-					logger.Error("check and mount by name error: ", zap.Error(err), zap.Any("name", cf["username"]))
+					return cloudRecoveryError(ctx, "Dropbox", "Failed to mount cloud storage", err)
 				}
 
 				notify["status"] = "warn"
@@ -162,13 +156,7 @@ func GetRecoverStorage(ctx echo.Context) error {
 		dmap["client_secret"] = dropbox.AppSecret
 		dmap["token"] = `{"access_token":"` + dropbox.AccessToken + `","token_type":"bearer","refresh_token":"` + dropbox.Addition.RefreshToken + `","expiry":"` + currentDate + `T` + currentTime.Add(time.Hour*3).Add(time.Minute*50).Format("15:04:05") + `.780385354Z"}`
 		dmap["mount_point"] = "/mnt/" + username
-		service.MyService.Storage().CreateConfig(dmap, username, "dropbox")
-		service.MyService.Storage().MountStorage("/mnt/"+username, username+":")
-
-		notify["status"] = "success"
-		notify["message"] = "Success"
-		notify["driver"] = "Dropbox"
-		service.MyService.Notify().SendNotify(event, notify)
+		return completeCloudRecovery(ctx, dmap, username, "dropbox", "Dropbox")
 	} else if t == "Onedrive" {
 		onedrive := onedrive.GetConfig()
 		onedrive.Code = ctx.QueryParam("code")
@@ -214,7 +202,7 @@ func GetRecoverStorage(ctx echo.Context) error {
 			}
 			if cf["type"] == "onedrive" && cf["username"] == dmap["username"] {
 				if err := service.MyService.Storage().CheckAndMountByName(v); err != nil {
-					logger.Error("check and mount by name error: ", zap.Error(err), zap.Any("name", cf["username"]))
+					return cloudRecoveryError(ctx, "Onedrive", "Failed to mount cloud storage", err)
 				}
 
 				notify["status"] = "warn"
@@ -235,14 +223,30 @@ func GetRecoverStorage(ctx echo.Context) error {
 		dmap["mount_point"] = "/mnt/" + username
 		dmap["drive_id"] = driveId
 		dmap["drive_type"] = driveType
-		service.MyService.Storage().CreateConfig(dmap, username, "onedrive")
-		service.MyService.Storage().MountStorage("/mnt/"+username, username+":")
-
-		notify["status"] = "success"
-		notify["message"] = "Success"
-		notify["driver"] = "Onedrive"
-		service.MyService.Notify().SendNotify(event, notify)
+		return completeCloudRecovery(ctx, dmap, username, "onedrive", "Onedrive")
 	}
 
 	return ctx.HTML(200, `<p>Just close the page</p><script>window.close()</script>`)
+}
+
+func cloudRecoveryError(ctx echo.Context, driver, message string, err error) error {
+	logger.Error("cloud storage recovery failed", zap.String("driver", driver), zap.Error(err))
+	service.MyService.Notify().SendNotify("casaos:file:recover", map[string]interface{}{
+		"status": "fail", "message": message, "driver": driver,
+	})
+	return ctx.HTML(http.StatusBadGateway, `<p>`+html.EscapeString(message)+`</p><script>window.close()</script>`)
+}
+
+func completeCloudRecovery(ctx echo.Context, data map[string]string, name, kind, driver string) error {
+	storage := service.MyService.Storage()
+	if err := storage.CreateConfig(data, name, kind); err != nil {
+		return cloudRecoveryError(ctx, driver, "Failed to save cloud storage configuration", err)
+	}
+	if err := storage.MountStorage(data["mount_point"], name+":"); err != nil {
+		return cloudRecoveryError(ctx, driver, "Failed to mount cloud storage", err)
+	}
+	service.MyService.Notify().SendNotify("casaos:file:recover", map[string]interface{}{
+		"status": "success", "message": "Success", "driver": driver,
+	})
+	return ctx.HTML(http.StatusOK, `<p>Just close the page</p><script>window.close()</script>`)
 }

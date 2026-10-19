@@ -128,17 +128,21 @@ func Unmount(mountPoint string) error {
 }
 
 func CreateConfig(data map[string]string, name, t string) error {
+	return createConfig(NewRestyClient(), data, name, t)
+}
+
+func createConfig(client *resty.Client, data map[string]string, name, t string) error {
 	data["config_is_local"] = "false"
 	dataStr, _ := json.Marshal(data)
-	res, err := NewRestyClient().R().SetFormData(map[string]string{
+	res, err := client.R().SetFormData(map[string]string{
 		"name":       name,
 		"parameters": string(dataStr),
 		"type":       t,
 	}).Post("/config/create")
-	logger.Info("when create config then", zap.Any("res", res.Body()))
 	if err != nil {
 		return err
 	}
+	logger.Info("rclone configuration response", zap.Int("status", res.StatusCode()))
 	if res.StatusCode() != 200 {
 		return fmt.Errorf("create config failed")
 	}
